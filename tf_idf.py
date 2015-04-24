@@ -6,10 +6,9 @@ def tfidf(term, doc, corpus):
 
 
 def idf(term, corpus):
-    docs = corpus.split('@en .')[:-1]
-    corpus = map(lambda d: d.split('"')[1], docs)
-    doc_count = len(corpus)
-    docs_with_term = sum(map(lambda d: int(term in d), corpus))
+    corpus = corpus.map(lambda line:  line.split('"')[1] if line != u'# started 2014-08-21T14:51:59Z' else '')
+    doc_count = corpus.count()
+    docs_with_term = corpus.map(lambda d: int(term in d)).sum()
     if docs_with_term:
         return math.log(doc_count / float(docs_with_term))
     return 0
