@@ -16,21 +16,29 @@ def get_all_docs(corpus):
                       else '')
 
 
-def calc_tfidf(rdd):
+def calc_tfidf(sc, rdd):
     # corpus = sc.textFile(path)
     corpus = rdd
     docs = get_all_docs(corpus)
-    docs.cache()
+    # docs.cache()
     doc_count = docs.count()
     term_dict = get_term_dict(corpus)
-    term_dict.cache()
-    dwt = n_docs_with_term(docs, term_dict)
+    # term_dict.cache()
+    dwt = n_docs_with_term(sc, docs, term_dict)
+    pdb.set_trace()
     return docs.foreach(lambda d: iterate_docs(d, doc_count, term_dict))
 
 
-def n_docs_with_term(docs, term_dict):
-    term_dict.foreach(lambda term: docs.map(
-                        lambda d: int(term in d)).sum())
+def n_docs_with_term(sc, docs, term_dict):
+    # sc.broadcast(term_dict)
+    td = term_dict.collect()
+
+    def check(doc):
+        x = []
+        for t in td:
+            x.append(int(t in doc))
+        return x
+    return docs.map(check)
 
 
 def iterate_docs(doc, doc_count, term_dict):
