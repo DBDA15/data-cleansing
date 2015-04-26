@@ -1,9 +1,13 @@
+import pdb
 import math
 from collections import Counter
 
 
 def get_term_dict(corpus):
-    return corpus.distinct()
+    #FIXME do not split at " as it kicks out \"aTermInAbstract\"
+    docs = corpus.map(lambda x: x.split('"')[1])
+    terms = docs.flatMap(lambda x: x.split())
+    return terms.distinct()
 
 
 def get_all_docs(corpus):
