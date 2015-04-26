@@ -21,11 +21,19 @@ def calc_tfidf(sc, rdd):
     # corpus = sc.textFile(path)
     corpus = rdd
     docs = get_all_docs(corpus)
-    # docs.cache()
     doc_count = docs.count()
     term_dict = get_term_dict(corpus)
-    # term_dict.cache()
     dwt = n_docs_with_term(docs, term_dict)
+
+    def vector_add(v1, v2):
+        x = []
+        for x1 in v1:
+            for x2 in v2:
+                x.append(x1+x2)
+        return x
+    pdb.set_trace()
+    dwt.collect()
+    reduce(vector_add, dwt)
     pdb.set_trace()
     return docs.foreach(lambda d: iterate_docs(d, doc_count, term_dict))
 
