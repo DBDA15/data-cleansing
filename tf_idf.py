@@ -5,7 +5,7 @@ from collections import Counter
 
 def get_term_dict(corpus):
     #FIXME do not split at " as it kicks out \"aTermInAbstract\"
-    docs = corpus.map(lambda x: x.split('"')[1])
+    docs = corpus.map(lambda x: x.split('"')[1].lower())
     terms = docs.flatMap(lambda x: x.split())
     return terms.distinct()
 
