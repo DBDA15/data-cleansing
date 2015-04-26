@@ -7,7 +7,8 @@ def get_term_dict(corpus):
     #FIXME do not split at " as it kicks out \"aTermInAbstract\"
     docs = corpus.map(lambda x: x.split('"')[1].lower())
     terms = docs.flatMap(lambda x: x.split())
-    return terms.distinct()
+    # collect() forces evaluation of action to be able to broadcast term_dict
+    return terms.distinct().collect()
 
 
 def get_all_docs(corpus):
@@ -30,8 +31,7 @@ def calc_tfidf(sc, rdd):
 
 
 def n_docs_with_term(docs, term_dict):
-    td = term_dict.collect()  # force evaluation of action
-    return docs.map(lambda d: map(lambda t: int(t in d), td))
+    return docs.map(lambda d: map(lambda t: int(t in d), term_dict))
 
 
 def iterate_docs(doc, doc_count, term_dict):
