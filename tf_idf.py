@@ -24,21 +24,14 @@ def calc_tfidf(sc, rdd):
     doc_count = docs.count()
     term_dict = get_term_dict(corpus)
     # term_dict.cache()
-    dwt = n_docs_with_term(sc, docs, term_dict)
+    dwt = n_docs_with_term(docs, term_dict)
     pdb.set_trace()
     return docs.foreach(lambda d: iterate_docs(d, doc_count, term_dict))
 
 
-def n_docs_with_term(sc, docs, term_dict):
-    # sc.broadcast(term_dict)
-    td = term_dict.collect()
-
-    def check(doc):
-        x = []
-        for t in td:
-            x.append(int(t in doc))
-        return x
-    return docs.map(check)
+def n_docs_with_term(docs, term_dict):
+    td = term_dict.collect()  # force evaluation of action
+    return docs.map(lambda d: map(lambda t: int(t in d), td))
 
 
 def iterate_docs(doc, doc_count, term_dict):
