@@ -119,7 +119,7 @@ public class TFIDFcalculator {
 	    	  if(!isStopword(word)) {
 	    	  	word = word.toLowerCase();
 	    		if(!wordmap.containsKey(word)) {
-	    			wordmap.put(word, StringUtils.countMatches(text, word));
+	    			wordmap.put(word, StringUtils.countMatches(text.toLowerCase(), word));
 	    		}
 	    	  }
 	      }
@@ -150,8 +150,8 @@ public class TFIDFcalculator {
 				} while (!found && myiter.hasNext());
 				
 				double tf = countThisDoc / maxCountInThisDoc;
-				double idf = totalnumberofdocs.getValue() / countInDocs;
-				double tfidf = tf/idf;
+				double idf = Math.log(totalnumberofdocs.getValue() / countInDocs);
+				double tfidf = tf*idf;
 				
 				tfidfs.put(term, tfidf);
 			}
