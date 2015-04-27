@@ -4,6 +4,9 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Set;
 //import java.util.Comparator;
 
@@ -15,13 +18,11 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.FlatMapFunction;
 import org.apache.spark.api.java.function.Function2;
-//import org.apache.spark.api.java.function.Function;
-//import org.apache.spark.api.java.function.Function2;
-//import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.api.java.function.VoidFunction;
 import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.broadcast.Broadcast;
 
-import com.sun.xml.bind.v2.runtime.unmarshaller.XsiNilLoader.Array;
-
+import org.apache.spark.api.java.function.Function;
 import scala.Tuple2;
 
 
@@ -54,7 +55,7 @@ public class TFIDFcalculator {
 	        					}
 	        				});
 	        
-	        Long doccount = lineItems.count();
+	        
 	        
 	        // in how many documents does each term occur?
 	        // as in https://spark.apache.org/docs/0.9.1/java-programming-guide.html
@@ -78,8 +79,21 @@ public class TFIDFcalculator {
 						  } // aggregates the occurrences
 					  );
 
+	        List<Tuple2<String, Integer>> wordOccsList = wordOccurrences.collect();
+	        final Broadcast<List<Tuple2<String, Integer>>> bcvar = context.broadcast(wordOccsList);
 	        
-	        System.out.println(wordOccurrences.take(20));
+	        final Broadcast<Long> bctotalnumberofdocs = context.broadcast(lineItems.count());
+	        
+	        lineItems = lineItems.mapValues(
+    				new Function<LineItem, LineItem>() {
+    					public LineItem call(LineItem li) {
+    						li.calcTFIDFs(bcvar, bctotalnumberofdocs);
+    						return li;
+    					}
+    				});
+	        
+	        System.out.println(lineItems.take(10));
+	        
 	    }
 	    
 	    
@@ -89,6 +103,7 @@ public class TFIDFcalculator {
 	static class LineItem implements Serializable {
 	    public String stringid;
 	    public HashMap<String, Integer> wordmap;
+	    public HashMap<String, Double> tfidfs;
 	    public Integer wordcount;
 
 	    public LineItem(String line) {
@@ -110,7 +125,40 @@ public class TFIDFcalculator {
 	      }
 	    }
 
-		public String toString() { return stringid + ": " + wordmap; }
+		public void calcTFIDFs(Broadcast<List<Tuple2<String, Integer>>> bcvar, Broadcast<Long> totalnumberofdocs) {
+			tfidfs = new HashMap<String, Double>();
+			
+			// which term is most often in this doc and how often is that?
+			int maxCountInThisDoc = -1;
+			for(String term: wordmap.keySet()) {
+				int thisCount = wordmap.get(term);
+				if(thisCount>maxCountInThisDoc)  maxCountInThisDoc = thisCount;
+			}
+			
+			for(String term: wordmap.keySet()) {
+				int countThisDoc = wordmap.get(term);
+				
+				int countInDocs = -1;
+				Iterator myiter = bcvar.getValue().iterator();
+				boolean found = false;
+				do{
+					Tuple2<String, Integer> doccounttpl = (Tuple2<String, Integer>) myiter.next();
+					if(doccounttpl._1().equals(term)) {
+						countInDocs = doccounttpl._2();
+						found = true;
+					}
+				} while (!found && myiter.hasNext());
+				
+				double tf = countThisDoc / maxCountInThisDoc;
+				double idf = totalnumberofdocs.getValue() / countInDocs;
+				double tfidf = tf/idf;
+				
+				tfidfs.put(term, tfidf);
+			}
+			
+		}
+
+		public String toString() { return stringid + ": " + tfidfs; }
 	    
 	  }
 	
