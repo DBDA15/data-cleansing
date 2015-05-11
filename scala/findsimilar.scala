@@ -14,8 +14,7 @@ def getNthWordOccurence ( n:Int, sortedWordArray:Array[String], theString: Strin
 	return "null"
 }
 
-// TODO
-def trimUnwantedCharacters(s: String) = s.replaceAll("\\,|:|\"|\\|\"|\.|\\(|\\)", "")
+def trimUnwantedCharacters(s: String) = s.replaceAll("[^a-zA-Z0-9]", "")
 /* statistics */
 
 val file = sc.textFile("small_corpus.nt")
@@ -37,3 +36,7 @@ val signed = abstracts.map( x => (getNthWordOccurence(1, bcCount.value, x), x) )
 /* reduce: join similar ones
 *
 */
+def reduceMe ( str1: String, str2: String ) : String = {
+	return "MERGED!" + str1+str2
+}
+signed.reduceByKey((a,b) => reduceMe(a,b))
