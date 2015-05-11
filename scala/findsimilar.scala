@@ -14,12 +14,13 @@ def getNthWordOccurence ( n:Int, sortedWordArray:Array[String], theString: Strin
 	return "null"
 }
 
-
+// TODO
+def trimUnwantedCharacters(s: String) = s.replaceAll("\\,|:|\"|\\|\"|\.|\\(|\\)", "")
 /* statistics */
 
-val file = sc.textFile("/home/dennis/DBDA/data-cleansing/small_corpus.nt")
+val file = sc.textFile("small_corpus.nt")
 val abstracts = file.map(line => line.split("<http://dbpedia.org/ontology/abstract>")(1).split("@en .")(0).toLowerCase()) /* maybe mapToPair with additional key from .split(..)(0) which is the resource ID */
-val words = abstracts.flatMap(line => line.split(" ").filter(word => !stopwords.contains(word)))
+val words = abstracts.flatMap(line => line.split(" ").map(trimUnwantedCharacters).filter(word => !stopwords.contains(word)))
 val counted = words.map(word => (word,1)).reduceByKey(_ + _)
 
 val countsorted = counted.sortBy(-_._2) /* sort by second array element DESC */
@@ -31,8 +32,7 @@ val countsorted = counted.sortBy(-_._2) /* sort by second array element DESC */
 * then do (flat)map with key <word that occurs the least globally>, flat if we want to consider a line multiple times with different keys. e.g. the 3 least occuring words.
 */
 val bcCount = sc.broadcast(countsorted.map(x => x._1).collect()) /* use map to remove integers, saves memory */
-val signed = abstracts.map(x => (getNthWordOccurence(1, bcCount.value, x), x))
-
+val signed = abstracts.map( x => (getNthWordOccurence(1, bcCount.value, x), x) )
 
 /* reduce: join similar ones
 *
