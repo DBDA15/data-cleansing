@@ -1,0 +1,33 @@
+- In unserer aufgabe geht es um das finden von Paaren von Einträgen die sich sehr ähnlich sind. Quasi Duplikaterkennung. Formell Similarity Join (der join ist aber eigentlich unwichtig)
+- Wir haben mehrere Datensätze zur Verfügung, arbeiten aber erstmal weiter an den Wikipedia-abstracts.
+- Zur einarbeitung in die Aufgabe haben wir von Toni zwei Paper bekommen:
+	- Algorithmus für Similarity Join auf einem Knoten
+	- Verteilten Map-Reduce-Algorithmus
+Anhand des papers schreiben wir gerade an einer ersten implementation.
+
+# Grundsätzliche Probleme:
+	- Wie O(n^2) vermeiden? Jedes Tupel mit jedem anderen vergleichen zu zeitkomplex.
+	- Verteilen des Algorithmus: Wie Duplikate zwischen verschiedenen Knoten finden?
+	- Wie exaktes Ergebnis liefern?
+
+- das paper teilt die Aufgabe in mehrere Schritte ein:
+	1) Kandidaten finden
+	2) Kandidaten auf gleichen Knoten verteilen
+	3) Ähnlichkeit der Kandidaten prüfen. Wenn > THRESH => Duplikat
+
+#Algorithmus
+
+## Statistik ermitteln
+1.1) Map: emit (word, 1) (ohne stopwords)
+1.2) Reduce: zählen
+1.3) nach Vorkommen absteigend sortieren
+1.4) Broadcast der Vorkommens-Statistik
+
+## Auswahl der Kandidaten
+Map: wähle Tupel, die eines der N seltendsten Worte enthalten
+Reduce: Vergleiche vollständige Tupel. Wenn hinreichend ähnlich => Duplikat, Output: (Tupel-ID1, Tupel-ID2)
+
+## Join
+Join (Tupel-ID1, Tupel-ID2)
+
+-Wir haben schon einen Teil davon fertig gestellt. Programmieren jetzt in Scala.
