@@ -14,12 +14,12 @@ def getNthWordOccurence ( n:Int, sortedWordArray:Array[String], theString: Strin
 	return "null"
 }
 
-def trimUnwantedCharacters(s: String) = s.replaceAll("[^a-zA-Z0-9]", "")
+def trimUnwantedCharacters(s: String): String =  return s.replaceAll("[^a-zA-Z0-9 ]", "")
 /* statistics */
 
 val file = sc.textFile("small_corpus.nt")
-val abstracts = file.map(line => line.split("<http://dbpedia.org/ontology/abstract>")(1).split("@en .")(0).toLowerCase()) /* maybe mapToPair with additional key from .split(..)(0) which is the resource ID */
-val words = abstracts.flatMap(line => line.split(" ").map(trimUnwantedCharacters).filter(word => !stopwords.contains(word)))
+val abstracts = file.map(line => trimUnwantedCharacters(line.split("<http://dbpedia.org/ontology/abstract>")(1).split("@en .")(0).toLowerCase())) /* maybe mapToPair with additional key from .split(..)(0) which is the resource ID */
+val words = abstracts.flatMap(line => line.split(" ").filter(word => !stopwords.contains(word)))
 val counted = words.map(word => (word,1)).reduceByKey(_ + _)
 
 val countsorted = counted.sortBy(-_._2) /* sort by second array element DESC */
@@ -31,12 +31,31 @@ val countsorted = counted.sortBy(-_._2) /* sort by second array element DESC */
 * then do (flat)map with key <word that occurs the least globally>, flat if we want to consider a line multiple times with different keys. e.g. the 3 least occuring words.
 */
 val bcCount = sc.broadcast(countsorted.map(x => x._1).collect()) /* use map to remove integers, saves memory */
-val signed = abstracts.map( x => (getNthWordOccurence(1, bcCount.value, x), x) )
+val signed = abstracts.map( x => (getNthWordOccurence(1, bcCount.value, x), Array(x)) )
 
-/* reduce: join similar ones
-*
+/* reduce: create Array[all abstracts with same key]
+	(key is dropped because we dont need it anymore)
 */
-def reduceMe ( str1: String, str2: String ) : String = {
-	return "MERGED!" + str1+str2
+
+import Array._
+val reduced = signed.reduceByKey((a,b) => concat(a,b)).values
+
+
+/*	flatmap: calculate similarities of all pair combinations per candidate array of abstracts
+*/
+def compareCandidates(candidates: Array[String]): Array[(Double,String,String)] = {
+	var result = new Array[(Double,String,String)](0)
+	for(i<-0 to (candidates.length-2)) {
+		var element = candidates(i)
+		/* compare with all elements that follow */
+		for(n<-(i+1) to (candidates.length-1)) {
+			var compareTo = candidates(n)
+			/* calculate similarity and add to result, placeholder similarity measure: string length */
+			var sim = element.length.toDouble / compareTo.length.toDouble
+			if (sim>1) sim = 1/sim;
+			result = concat(result, Array((sim, element.substring(0,15), compareTo.substring(0,15))))
+		}
+	}
+	return result
 }
-signed.reduceByKey((a,b) => reduceMe(a,b))
+val similarities = reduced.flatMap(compareCandidates)
