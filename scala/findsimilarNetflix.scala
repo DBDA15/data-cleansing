@@ -3,17 +3,18 @@ def parseLine(line: String, movid:Int):(Int, Int, Int) = {
 	return (splitted(0).toInt, movid, splitted(1).toInt)
 }
 
-val numberOfFiles = 9
+val numberOfFiles = 1
+/* TODO: duplicate code with the occurrence in the for loop. ugly. */
 var parsed = sc.textFile("netflixdata/mv_0000001.txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
 
 for(i <- 2 to numberOfFiles) {
-	val thisDataset = sc.textFile("netflixdata/mv_000000" + i + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
+	val thisDataset = sc.textFile("netflixdata/mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
 	parsed = parsed ++ thisDataset 
 }
 
 /* statistics */
 /* TODO: these statistics could also be generated while reading the files! */
-val statistics = parsed.groupBy(_._2).map(x => (x._1, x._2.size)).sortBy(-_._2)
+val statistics = parsed.groupBy(_._2).map(x => (x._1, x._2.size)).sortBy(_._2)
 
 /* group ratings by user */
 val users = parsed.groupBy(_._1) /* users: org.apache.spark.rdd.RDD[(Int, Iterable[(Int, Int, Int)])] */
@@ -23,22 +24,27 @@ val users = parsed.groupBy(_._1) /* users: org.apache.spark.rdd.RDD[(Int, Iterab
 /* make signature 
 *
 * Broadcast
+* N: how many movie ids are used for the sig
 */
 
-def determineSignature ( n:Int, statistics:Array[Int], ratings: Iterable[(Int, Int, Int)] ) : Int = {
+def determineSignature ( n:Int, statistics:Array[Int], ratings: Iterable[(Int, Int, Int)] ) : String = {
+	var result = ""
 	var occ = 0
 	for ( x <- statistics ) {
 		for ( rat <- ratings )  {
-			if(rat._2 == x) occ += 1; /* if that user has rated that movie */
+			if(rat._2 == x) {
+				result += "," + x
+				occ += 1
+			} /* if that user has rated that movie */
 		}
-		if(occ == n) return x
+		if(occ == n) return result
     }
-	return -1
+	return null
 }
 
 val bcCount = sc.broadcast(statistics.map(x => x._1).collect) /* we only keep the movid, not the number of ratings */
 
-val signed = users.map( x => (determineSignature(1, bcCount.value, x._2), Array(x)) )
+val signed = users.map( x => (determineSignature(1, bcCount.value, x._2), Array(x)) ).filter(_._1 != null)
 
 /* reduce: create Array[all users with same signature]
 	(key is dropped because we dont need it anymore)
@@ -54,7 +60,7 @@ def calculateSimilarity(element: (Int, Iterable[(Int, Int, Int)]), compareTo: (I
 }
 
 def compareCandidates(candidates: Array[(Int, Iterable[(Int, Int, Int)])]): Array[(Int,Int,Double)] = {
-	var result = new Array[(Double,Int,Int)](0)
+	var result = new Array[(Int,Int,Double)](0)
 	for(i<-0 to (candidates.length-2)) {
 		var element = candidates(i)
 		/* compare with all elements that follow */
@@ -67,3 +73,5 @@ def compareCandidates(candidates: Array[(Int, Iterable[(Int, Int, Int)])]): Arra
 	return result
 }
 val similarities = reduced.flatMap(compareCandidates)
+similarities.count()
+
