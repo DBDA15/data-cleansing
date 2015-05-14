@@ -1,9 +1,11 @@
+val numberOfFiles = 4
+val numberOfMoviesForSig = 2
+
 def parseLine(line: String, movid:Int):(Int, Int, Int) = {
 	val splitted = line.split(",")
 	return (splitted(0).toInt, movid, splitted(1).toInt)
 }
 
-val numberOfFiles = 1
 /* TODO: duplicate code with the occurrence in the for loop. ugly. */
 var parsed = sc.textFile("netflixdata/mv_0000001.txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
 
@@ -44,14 +46,28 @@ def determineSignature ( n:Int, statistics:Array[Int], ratings: Iterable[(Int, I
 
 val bcCount = sc.broadcast(statistics.map(x => x._1).collect) /* we only keep the movid, not the number of ratings */
 
-val signed = users.map( x => (determineSignature(1, bcCount.value, x._2), Array(x)) ).filter(_._1 != null)
+
+/* 	yields RDD[(signature, user)]. 
+*	user represented by iterable of all his ratings. 
+*	formally RDD[(String, Array[(Int, Iterable[(Int, Int, Int)])])]
+*/
+val signed = users.map( x => (determineSignature(numberOfMoviesForSig, bcCount.value, x._2), Array(x)) ).filter(_._1 != null) 
+
+
 
 /* reduce: create Array[all users with same signature]
 	(key is dropped because we dont need it anymore)
+	yields RDD[Array[Array[(Int, Iterable[(Int, Int, Int)])]]
+	interpreted as follows:
+		inner Array is one user represented by all his votings
+		outer array is a bucket of all users with the same signature. (we dropped the sig string bfore)
+		RDD is the list of buckets by signature
+	reduced.count : how many movie(-combinations) have produced a bucket of candidates?
+	reduced.map(x => (x.size)).collect: How big are the buckets?
+		Important to anticipate runtime of compareCandidates!
 */
-
 import Array._
-val reduced = signed.reduceByKey((a,b) => concat(a,b)).values /* RDD[Array[(Int, Iterable[(Int, Int, Int)])]] */
+val reduced = signed.reduceByKey((a,b) => concat(a,b)).values /* RDD[Array[Array[(Int, Iterable[(Int, Int, Int)])]] */
 
 
 /* flatmap: calculate similarities of all pair combinations per candidate array */
@@ -73,5 +89,4 @@ def compareCandidates(candidates: Array[(Int, Iterable[(Int, Int, Int)])]): Arra
 	return result
 }
 val similarities = reduced.flatMap(compareCandidates)
-similarities.count()
 
