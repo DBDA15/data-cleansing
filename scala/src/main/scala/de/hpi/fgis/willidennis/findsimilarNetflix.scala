@@ -6,14 +6,15 @@ import org.apache.spark.SparkContext
 import org.apache.spark.rdd.RDD.rddToPairRDDFunctions
 import org.apache.spark.rdd.RDD
 
+import org.apache.log4j.Logger
+import org.apache.log4j.Level
+
 import Array._
 
 
 object Main extends App {
 	val numberOfFiles = 4
 	val numberOfMoviesForSig = 2
-
-	val TRAINING_PATH = "netflixdata/training_set/"
 
 	def determineSignature ( n:Int, statistics:Array[Int], ratings: Iterable[(Int, Int, Int)] ) : String = {
 		var result = ""
@@ -32,6 +33,7 @@ object Main extends App {
 
 	/* flatmap: calculate similarities of all pair combinations per candidate array */
 	def calculateSimilarity(element: (Int, Iterable[(Int, Int, Int)]), compareTo: (Int, Iterable[(Int, Int, Int)])) : Double = {
+		// WM TODO: calculate % of movies in common
 		return 1
 	}
 
@@ -58,8 +60,14 @@ object Main extends App {
 	conf.setAppName(Main.getClass.getName)
 	conf.set("spark.hadoop.validateOutputSpecs", "false");
 	conf.set("spark.executor.memory", "4g");
+	// on server: --conf TRAINING_PATH="hdfs://tenemhead2/data/data-cleansing/netflixdata"
+	val TRAINING_PATH = conf.get("TRAINING_PATH", "netflixdata/training_set/")
 	val sc = new SparkContext(conf)
 
+	if (conf.get("LogLevel") == "Off") {
+		Logger.getLogger("org").setLevel(Level.OFF)
+		Logger.getLogger("akka").setLevel(Level.OFF)
+	}
 
 	// build empty RDD, not that empty though
 	var parsed = sc.textFile(TRAINING_PATH+"mv_0000001.txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
