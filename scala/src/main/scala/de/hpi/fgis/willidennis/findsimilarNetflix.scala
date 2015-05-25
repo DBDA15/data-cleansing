@@ -61,7 +61,7 @@ object Main extends App {
 	val sc = new SparkContext(conf)
 
 
-	/* TODO: duplicate code with the occurrence in the for loop. ugly. */
+	// build empty RDD, not that empty though
 	var parsed = sc.textFile(TRAINING_PATH+"mv_0000001.txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
 
 	for(i <- 2 to numberOfFiles) {
@@ -94,7 +94,6 @@ object Main extends App {
 	val signed = users.map( x => (determineSignature(numberOfMoviesForSig, bcCount.value, x._2), Array(x)) ).filter(_._1 != null)
 
 
-
 	/* reduce: create Array[all users with same signature]
 		(key is dropped because we dont need it anymore)
 		yields RDD[Array[Array[(Int, Iterable[(Int, Int, Int)])]]
@@ -107,9 +106,9 @@ object Main extends App {
 			Important to anticipate runtime of compareCandidates!
 	*/
 
-	val reduced = signed.reduceByKey((a,b) => concat(a,b)).values /* RDD[Array[Array[(Int, Iterable[(Int, Int, Int)])]] */
-
-
+	val reduced = signed.reduceByKey((a,b) => concat(a,b)).values /* RDD[Array[(Int, Iterable[(Int, Int, Int)])] */
 
 	val similarities = reduced.flatMap(compareCandidates)
+	println(similarities.take(5))
+	similarities.saveAsTextFile("result")
 }
