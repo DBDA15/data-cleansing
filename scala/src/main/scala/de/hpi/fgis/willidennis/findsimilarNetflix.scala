@@ -64,7 +64,7 @@ object Main extends App {
 	val TRAINING_PATH = conf.get("TRAINING_PATH", "netflixdata/training_set/")
 	val sc = new SparkContext(conf)
 
-	if (conf.get("LogLevel", "on") == "off") {
+	if (conf.get("LogLevel", "off") == "off") {
 		Logger.getLogger("org").setLevel(Level.OFF)
 		Logger.getLogger("akka").setLevel(Level.OFF)
 	}
