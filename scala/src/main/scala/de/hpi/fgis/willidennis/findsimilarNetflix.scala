@@ -1,4 +1,3 @@
-
 package de.hpi.fgis.willidennis
 
 import org.apache.spark.SparkConf
@@ -11,10 +10,11 @@ import org.apache.log4j.Level
 
 import Array._
 
-
 object Main extends App {
+
 	val numberOfFiles = 4
 	val numberOfMoviesForSig = 2
+	val simThreshold = 0.5
 
 	def determineSignature ( n:Int, statistics:Array[Int], ratings: Iterable[(Int, Int, Int)] ) : String = {
 		var result = ""
@@ -32,9 +32,11 @@ object Main extends App {
 	}
 
 	/* flatmap: calculate similarities of all pair combinations per candidate array */
-	def calculateSimilarity(element: (Int, Iterable[(Int, Int, Int)]), compareTo: (Int, Iterable[(Int, Int, Int)])) : Double = {
-		// WM TODO: calculate % of movies in common
-		return 1
+	def calculateSimilarity(user1: (Int, Iterable[(Int, Int, Int)]), user2: (Int, Iterable[(Int, Int, Int)])) : Double = {
+		val u1set = user1._2.map(x => (x._2, x._3)).toSet
+		val u2set = user2._2.map(x => (x._2, x._3)).toSet
+
+		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
 	def compareCandidates(candidates: Array[(Int, Iterable[(Int, Int, Int)])]): Array[(Int,Int,Double)] = {
@@ -44,8 +46,12 @@ object Main extends App {
 			/* compare with all elements that follow */
 			for(n<-(i+1) to (candidates.length-1)) {
 				var compareTo = candidates(n)
+				
 				/* calculate similarity and add to result */
-				result = concat(result, Array((element._1, compareTo._1, calculateSimilarity(element, compareTo))))
+				val simvalue = calculateSimilarity(element, compareTo)
+				if(simvalue > simThreshold)	{
+					result = concat(result, Array((element._1, compareTo._1, simvalue)))
+				}
 			}
 		}
 		return result
@@ -53,21 +59,15 @@ object Main extends App {
 
 	def parseLine(line: String, movid:Int):(Int, Int, Int) = {
 		val splitted = line.split(",")
-		return (splitted(0).toInt, movid, splitted(1).toInt)
+		return (splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
-	val conf = new SparkConf()
+	var TRAINING_PATH = "netflixdata/training_set/"
+
+	var conf = new SparkConf()
 	conf.setAppName(Main.getClass.getName)
-	conf.set("spark.hadoop.validateOutputSpecs", "false");
-	conf.set("spark.executor.memory", "4g");
-	// on server: --conf TRAINING_PATH="hdfs://tenemhead2/data/data-cleansing/netflixdata"
-	val TRAINING_PATH = conf.get("TRAINING_PATH", "netflixdata/training_set/")
+	conf.set("spark.executor.memory", "4g")
 	val sc = new SparkContext(conf)
-
-	if (conf.get("LogLevel", "off") == "off") {
-		Logger.getLogger("org").setLevel(Level.OFF)
-		Logger.getLogger("akka").setLevel(Level.OFF)
-	}
 
 	// build empty RDD, not that empty though
 	var parsed = sc.textFile(TRAINING_PATH+"mv_0000001.txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
@@ -117,6 +117,6 @@ object Main extends App {
 	val reduced = signed.reduceByKey((a,b) => concat(a,b)).values /* RDD[Array[(Int, Iterable[(Int, Int, Int)])] */
 
 	val similarities = reduced.flatMap(compareCandidates)
-	println(similarities.take(5))
+	println(similarities.take(50))
 	similarities.saveAsTextFile("result")
 }
