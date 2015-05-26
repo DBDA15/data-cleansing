@@ -116,7 +116,6 @@ object Main extends App {
 		*/
 		val signed = users.map( x => (determineSignature(numberOfMoviesForSig, bcCount.value, x._2), Array(x)) ).filter(_._1 != null)
 
-
 		/* reduce: create Array[all users with same signature]
 			(key is dropped because we dont need it anymore)
 			yields RDD[Array[Array[(Int, Iterable[(Int, Int, Int)])]]
@@ -132,7 +131,10 @@ object Main extends App {
 		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values /* RDD[Array[(Int, Iterable[(Int, Int, Int)])] */
 
 		val similarities = reduced.flatMap(compareCandidates)
-		println(similarities.take(50))
 		similarities.saveAsTextFile("result")
+
+		println(s"\n\n ####### Ratings: ${parsed.size} ###### \n\n")
+		println(s"\n\n ####### Users: ${signed.size} ###### \n\n")
+		println(s"\n\n ####### Similar pairs: ${similarities.size} ###### \n\n")
 	}
 }
