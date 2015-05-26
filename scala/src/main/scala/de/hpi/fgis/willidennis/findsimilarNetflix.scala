@@ -60,14 +60,24 @@ object Main extends App {
 		return (splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
-	
-	override def main(args: Array[String]) = {
-		val numberOfFiles = 4
-		val numberOfMoviesForSig = 2
 
+	override def main(args: Array[String]) = {
+		var numberOfFiles = 4
+		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
-		//if(!args.isEmpty) TRAINING_PATH = args(1)
-		println(args)
+
+		// args(0) == "--class"
+		// args(1) == "scala/target/classes/de/hpi/fgis/willidennis/Main"
+		if(args.size > 2) {
+			TRAINING_PATH = args(2)
+		}
+		if(args.size > 3) {
+			numberOfFiles = args(3)
+		}
+
+		if(args.size > 4) {
+			numberOfMoviesForSig = args(4)
+		}
 
 		var conf = new SparkConf()
 		conf.setAppName(Main.getClass.getName)
