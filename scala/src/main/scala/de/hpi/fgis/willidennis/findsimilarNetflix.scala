@@ -133,8 +133,8 @@ object Main extends App {
 		val similarities = reduced.flatMap(compareCandidates)
 		similarities.saveAsTextFile("result")
 
-		println(s"\n\n ####### Ratings: ${parsed.size} ###### \n\n")
-		println(s"\n\n ####### Users: ${signed.size} ###### \n\n")
-		println(s"\n\n ####### Similar pairs: ${similarities.size} ###### \n\n")
+		println(s"\n\n ####### Ratings: ${parsed.collect().size} ###### \n\n")
+		println(s"\n\n ####### Users: ${signed.collect().size} ###### \n\n")
+		println(s"\n\n ####### Similar pairs: ${similarities.collect().size} ###### \n\n")
 	}
 }
