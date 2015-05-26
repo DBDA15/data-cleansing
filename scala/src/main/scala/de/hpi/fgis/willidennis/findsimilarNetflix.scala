@@ -72,11 +72,11 @@ object Main extends App {
 			TRAINING_PATH = args(2)
 		}
 		if(args.size > 3) {
-			numberOfFiles = args(3).toInt()
+			numberOfFiles = args(3).toInt
 		}
 
 		if(args.size > 4) {
-			numberOfMoviesForSig = args(4).toInt()
+			numberOfMoviesForSig = args(4).toInt
 		}
 
 		var conf = new SparkConf()
