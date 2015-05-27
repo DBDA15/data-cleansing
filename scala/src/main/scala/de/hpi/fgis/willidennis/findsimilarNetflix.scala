@@ -65,6 +65,7 @@ object Main extends App {
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
+		var RESULTS_PATH = "result"
 
 		if(args.size > 0) {
 			TRAINING_PATH = args(0)
@@ -76,6 +77,10 @@ object Main extends App {
 		if(args.size > 2) {
 			numberOfMoviesForSig = args(2).toInt
 		}
+
+		if(args.size > 3) {
+			RESULTS_PATH = args(3)
+		}		
 
 		var conf = new SparkConf()
 		conf.setAppName(Main.getClass.getName)
@@ -129,7 +134,7 @@ object Main extends App {
 		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values /* RDD[Array[(Int, Iterable[(Int, Int, Int)])] */
 
 		val similarities = reduced.flatMap(compareCandidates)
-		similarities.saveAsTextFile("result")
+		similarities.saveAsTextFile(RESULTS_PATH)
 
 		println(s"\n\n ####### Ratings: ${parsed.collect().size} ###### \n\n")
 		println(s"\n\n ####### Users: ${signed.collect().size} ###### \n\n")
