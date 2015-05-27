@@ -133,9 +133,9 @@ object Main extends App {
 
 		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1) /* RDD[Array[(Int, Iterable[(Int, Int, Int)])] */
 
-		//val similarities = reduced.flatMap(compareCandidates).collect()
-		reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
-		//similarities.saveAsTextFile(RESULTS_PATH)
+		val similarities = reduced.flatMap(compareCandidates)
+		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
+		similarities.saveAsTextFile(RESULTS_PATH)
 
 		println(s"\n\n ####### Ratings: ${parsed.count()} ###### \n\n")
 		println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
