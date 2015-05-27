@@ -66,17 +66,15 @@ object Main extends App {
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
 
-		// args(0) == "--class"
-		// args(1) == "scala/target/classes/de/hpi/fgis/willidennis/Main"
-		if(args.size > 2) {
-			TRAINING_PATH = args(2)
+		if(args.size > 0) {
+			TRAINING_PATH = args(0)
 		}
-		if(args.size > 3) {
-			numberOfFiles = args(3).toInt
+		if(args.size > 1) {
+			numberOfFiles = args(1).toInt
 		}
 
-		if(args.size > 4) {
-			numberOfMoviesForSig = args(4).toInt
+		if(args.size > 2) {
+			numberOfMoviesForSig = args(2).toInt
 		}
 
 		var conf = new SparkConf()
