@@ -91,43 +91,23 @@ object Main extends App {
 		var i = 1
 		var parsed = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
 
-		for(i <- 2 to 200) {
+		val fileRDDs = new Array[org.apache.spark.rdd.RDD[(Int, Int, Int)]](numberOfFiles/200)
+
+		for(i <- 2 to numberOfFiles) {
 			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
-			parsed = parsed ++ thisDataset
-			/*if(i%200==0) {
-				parsed.persist()
-				println(s"\n\n ####### Persisting! ###### \n\n")
+			if(i%200==0 && i>0) {
+				fileRDDs((i/200)-1) = parsed
+				parsed = thisDataset
 			}
-			*/
+			else {
+				parsed = parsed ++ thisDataset
+			}	
 		}
-	
-		i = i+1
-		var parsed2 = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
-
-		for(i <- 202 to 400) {
-			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
-			parsed2 = parsed2 ++ thisDataset
-			/*if(i%200==0) {
-				parsed.persist()
-				println(s"\n\n ####### Persisting! ###### \n\n")
-			}
-			*/
+		
+		/* concat all rdds */
+		for(myrdd <- fileRDDs) {
+			parsed = parsed ++ myrdd
 		}
-
-		i = i+1
-		var parsed3 = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
-
-		for(i <- 402 to 600) {
-			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
-			parsed3 = parsed3 ++ thisDataset
-			/*if(i%200==0) {
-				parsed.persist()
-				println(s"\n\n ####### Persisting! ###### \n\n")
-			}
-			*/
-		}
-
-		parsed = parsed ++ parsed2 ++ parsed3
 
 
 		/* statistics */
