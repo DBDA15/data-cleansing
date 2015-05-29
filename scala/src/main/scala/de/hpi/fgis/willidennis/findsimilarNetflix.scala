@@ -88,12 +88,47 @@ object Main extends App {
 		val sc = new SparkContext(conf)
 
 		// build empty RDD, not that empty though
-		var parsed = sc.textFile(TRAINING_PATH+"mv_0000001.txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
+		var i = 1
+		var parsed = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
 
-		for(i <- 2 to numberOfFiles) {
+		for(i <- 2 to 200) {
 			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
 			parsed = parsed ++ thisDataset
+			/*if(i%200==0) {
+				parsed.persist()
+				println(s"\n\n ####### Persisting! ###### \n\n")
+			}
+			*/
 		}
+	
+		i = i+1
+		var parsed2 = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
+
+		for(i <- 202 to 400) {
+			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
+			parsed2 = parsed2 ++ thisDataset
+			/*if(i%200==0) {
+				parsed.persist()
+				println(s"\n\n ####### Persisting! ###### \n\n")
+			}
+			*/
+		}
+
+		i = i+1
+		var parsed3 = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
+
+		for(i <- 402 to 600) {
+			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
+			parsed3 = parsed3 ++ thisDataset
+			/*if(i%200==0) {
+				parsed.persist()
+				println(s"\n\n ####### Persisting! ###### \n\n")
+			}
+			*/
+		}
+
+		parsed = parsed ++ parsed2 ++ parsed3
+
 
 		/* statistics */
 		/* TODO: these statistics could also be generated while reading the files! */
