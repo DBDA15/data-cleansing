@@ -12,8 +12,6 @@ import Array._
 
 object Main extends App {
 
-	val SIMTHRESHOLD = 0.9
-
 	/*
 	* 
 	*/
@@ -35,8 +33,13 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(Int,Int,Double)] = {
-		var result = new Array[(Int,Int,Double)](0)
+	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(Int,Int,Double)] = {		
+		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
+
+
+		var result = new Array[(Int,Int,Double)](500*500)
+		var arrayIndex = 0
+
 		for(i<-0 to (candidates.length-2)) {
 			var user1 = candidates(i)
 			/* compare with all elements that follow */
@@ -53,11 +56,12 @@ object Main extends App {
 				
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
-					if(simvalue >= SIMTHRESHOLD)	{
-						result = concat(result, Array((user1.head._1, user2.head._1, simvalue)))
+					if(simvalue >= SIMTHRESHOLD) {
+						result(arrayIndex) = (user1.head._1, user2.head._1, simvalue)
+						arrayIndex = arrayIndex +1
 					}
 				}
-				
+
 			}
 		}
 		return result
@@ -70,6 +74,7 @@ object Main extends App {
 
 
 	override def main(args: Array[String]) = {
+
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
@@ -136,12 +141,12 @@ object Main extends App {
 
 		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
 
-		val similarities = reduced.flatMap(compareCandidates)
+		val similarities = reduced.flatMap(compareCandidates).filter(_ != null)
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
-		similarities.saveAsTextFile(RESULTS_PATH)
-
+		//similarities.saveAsTextFile(RESULTS_PATH)
+		
+		println(s"\n\n ####### Similar pairs: ${similarities.count()} ###### \n\n")
 		println(s"\n\n ####### Ratings: ${parsed.count()} ###### \n\n")
-		println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
-		//println(s"\n\n ####### Similar pairs: ${similarities.count()} ###### \n\n")
+		println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")	
 	}
 }
