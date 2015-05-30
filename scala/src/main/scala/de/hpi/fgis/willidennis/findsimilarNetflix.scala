@@ -47,7 +47,7 @@ object Main extends App {
 
 				/* calculate similarity and add to result */
 				val simvalue = calculateSimilarity(element, compareTo)
-				if(simvalue > simThreshold)	{
+				if(simvalue >= simThreshold)	{
 					result = concat(result, Array((element._1, compareTo._1, simvalue)))
 				}
 			}
