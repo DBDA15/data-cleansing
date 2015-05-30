@@ -12,7 +12,7 @@ import Array._
 
 object Main extends App {
 
-	val SIMTHRESHOLD = 0.5
+	val SIMTHRESHOLD = 0.9
 
 	/*
 	* 
@@ -43,12 +43,21 @@ object Main extends App {
 			for(n<-(i+1) to (candidates.length-1)) {
 				var user2 = candidates(n)
 
-
-				/* calculate similarity and add to result */
-				val simvalue = calculateSimilarity(user1, user2)
-				if(simvalue >= SIMTHRESHOLD)	{
-					result = concat(result, Array((user1.head._1, user2.head._1, simvalue)))
+				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
+				var sizesInRange = false
+				if(user1.size<user2.size) {
+					sizesInRange = user2.size*SIMTHRESHOLD <= user1.size
+				} else {
+					sizesInRange = user1.size*SIMTHRESHOLD <= user2.size
 				}
+				
+				if(sizesInRange) {
+					val simvalue = calculateSimilarity(user1, user2)
+					if(simvalue >= SIMTHRESHOLD)	{
+						result = concat(result, Array((user1.head._1, user2.head._1, simvalue)))
+					}
+				}
+				
 			}
 		}
 		return result
