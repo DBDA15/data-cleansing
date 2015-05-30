@@ -12,43 +12,42 @@ import Array._
 
 object Main extends App {
 
-	val simThreshold = 0.5
+	val SIMTHRESHOLD = 0.5
 
-	def determineSignature ( n:Int, statistics:Array[Int], ratings: Iterable[(Int, Int, Int)] ) : String = {
-		var result = ""
-		var occ = 0
-		for ( x <- statistics ) {
-			for ( rat <- ratings )  {
-				if(rat._2 == x) {
-					result += "," + x
-					occ += 1
-				} /* if that user has rated that movie */
-			}
-			if(occ == n) return result
-	    }
-		return null
+	/*
+	* 
+	*/
+	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[(Int, Array[ Iterable[(Int, Int, Int)] ] )] = {
+		val ratings = user._2
+		val result = new Array[(Int, Array[ Iterable[(Int, Int, Int)] ] )] (ratings.size)
+		var i = 0
+		for ( rat <- ratings )  {
+			result(i) = (rat._2, Array(ratings))
+			i = i+1
+		}
+		return result
 	}
 
-	/* flatmap: calculate similarities of all pair combinations per candidate array */
-	def calculateSimilarity(user1: (Int, Iterable[(Int, Int, Int)]), user2: (Int, Iterable[(Int, Int, Int)])) : Double = {
-		val u1set = user1._2.map(x => (x._2, x._3)).toSet
-		val u2set = user2._2.map(x => (x._2, x._3)).toSet
+	def calculateSimilarity(user1: Iterable[(Int, Int, Int)], user2: Iterable[(Int, Int, Int)]) : Double = {
+		val u1set = user1.map(x => (x._2, x._3)).toSet
+		val u2set = user2.map(x => (x._2, x._3)).toSet
 
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[(Int, Iterable[(Int, Int, Int)])]): Array[(Int,Int,Double)] = {
+	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(Int,Int,Double)] = {
 		var result = new Array[(Int,Int,Double)](0)
 		for(i<-0 to (candidates.length-2)) {
-			var element = candidates(i)
+			var user1 = candidates(i)
 			/* compare with all elements that follow */
 			for(n<-(i+1) to (candidates.length-1)) {
-				var compareTo = candidates(n)
+				var user2 = candidates(n)
+
 
 				/* calculate similarity and add to result */
-				val simvalue = calculateSimilarity(element, compareTo)
-				if(simvalue >= simThreshold)	{
-					result = concat(result, Array((element._1, compareTo._1, simvalue)))
+				val simvalue = calculateSimilarity(user1, user2)
+				if(simvalue >= SIMTHRESHOLD)	{
+					result = concat(result, Array((user1.head._1, user2.head._1, simvalue)))
 				}
 			}
 		}
@@ -93,10 +92,12 @@ object Main extends App {
 
 		val fileRDDs = new Array[org.apache.spark.rdd.RDD[(Int, Int, Int)]](numberOfFiles/200)
 
+		/* split RDD every N files to avoid stackoverflow */
+		val splitRDDeveryNfiles = 200
 		for(i <- 2 to numberOfFiles) {
 			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
-			if(i%200==0 && i>0) {
-				fileRDDs((i/200)-1) = parsed
+			if(i%splitRDDeveryNfiles==0 && i>0) {
+				fileRDDs((i/splitRDDeveryNfiles)-1) = parsed
 				parsed = thisDataset
 			}
 			else {
@@ -104,49 +105,27 @@ object Main extends App {
 			}	
 		}
 		
-		/* concat all rdds */
+		/* concat all temporary rdds */
 		for(myrdd <- fileRDDs) {
 			parsed = parsed ++ myrdd
 		}
 
-
-		/* statistics */
-		/* TODO: these statistics could also be generated while reading the files! */
-		val statistics = parsed.groupBy(_._2).map(x => (x._1, x._2.size)).sortBy(_._2)
-
 		/* group ratings by user */
 		val users = parsed.groupBy(_._1) /* users: org.apache.spark.rdd.RDD[(Int, Iterable[(Int, Int, Int)])] */
-		/* TODO: users has userID as key and then repeted in tuple. unnecessary! */
+		/* TODO: users has userID as key and then repeated in tuple. unnecessary! */
 
 
 		/* make signature
-		*
-		* Broadcast
-		* N: how many movie ids are used for the sig
-		*/
-
-		val bcCount = sc.broadcast(statistics.map(x => x._1).collect) /* we only keep the movid, not the number of ratings */
-
-
-		/* 	yields RDD[(signature, user)].
+		* 	yields RDD[(signature, user)].
 		*	user represented by iterable of all his ratings.
-		*	formally RDD[(String, Array[(Int, Iterable[(Int, Int, Int)])])]
+		*	formally RDD[(String, Array[Iterable[(Int, Int, Int)])])
 		*/
-		val signed = users.map( x => (determineSignature(numberOfMoviesForSig, bcCount.value, x._2), Array(x)) ).filter(_._1 != null)
+		val signed = users.flatMap(determineSignature)
 
-		/* reduce: create Array[all users with same signature]
-			(key is dropped because we dont need it anymore)
-			yields RDD[Array[Array[(Int, Iterable[(Int, Int, Int)])]]
-			interpreted as follows:
-				inner Array is one user represented by all his votings
-				outer array is a bucket of all users with the same signature. (we dropped the sig string bfore)
-				RDD is the list of buckets by signature
-			reduced.count : how many movie(-combinations) have produced a bucket of candidates?
-			reduced.map(x => (x.size)).collect: How big are the buckets?
-				Important to anticipate runtime of compareCandidates!
+		/* reduce
 		*/
 
-		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1) /* RDD[Array[(Int, Iterable[(Int, Int, Int)])] */
+		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
 
 		val similarities = reduced.flatMap(compareCandidates)
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
