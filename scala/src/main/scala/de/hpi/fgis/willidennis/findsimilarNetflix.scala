@@ -34,10 +34,11 @@ object Main extends App {
 	}
 
 	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(Int,Int,Double)] = {		
-		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
+		val SIMTHRESHOLD = 0.8 /* TODO: where else can we set this!? */
+		val CONCATAFTER = 10000
 
-
-		var result = new Array[(Int,Int,Double)](500*500)
+		var result = new Array[(Int,Int,Double)](0)
+		var tmparray = new Array[(Int,Int,Double)](CONCATAFTER)
 		var arrayIndex = 0
 
 		for(i<-0 to (candidates.length-2)) {
@@ -57,12 +58,18 @@ object Main extends App {
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
 					if(simvalue >= SIMTHRESHOLD) {
-						result(arrayIndex) = (user1.head._1, user2.head._1, simvalue)
-						arrayIndex = arrayIndex +1
+						tmparray(arrayIndex) = (user1.head._1, user2.head._1, simvalue) /* (userid, userid, simvalue) */
+						arrayIndex += 1
+
+						if(arrayIndex == CONCATAFTER) {
+							result = result ++ tmparray
+							arrayIndex = 0
+							tmparray = new Array[(Int,Int,Double)](CONCATAFTER)
+						}
 					}
 				}
-
 			}
+			result = result ++ tmparray.filter(_ != null)
 		}
 		return result
 	}
@@ -143,9 +150,9 @@ object Main extends App {
 
 		val similarities = reduced.flatMap(compareCandidates).filter(_ != null)
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
-		//similarities.saveAsTextFile(RESULTS_PATH)
+		similarities.saveAsTextFile(RESULTS_PATH)
 		
-		println(s"\n\n ####### Similar pairs: ${similarities.count()} ###### \n\n")
+		//println(s"\n\n ####### Similar pairs: ${similarities.count()} ###### \n\n")
 		println(s"\n\n ####### Ratings: ${parsed.count()} ###### \n\n")
 		println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")	
 	}
