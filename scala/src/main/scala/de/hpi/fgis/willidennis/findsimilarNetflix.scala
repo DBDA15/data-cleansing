@@ -33,16 +33,17 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(Int,Int,Double)] = {		
+	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(Int,Int)] = {		
 		val SIMTHRESHOLD = 0.8 /* TODO: where else can we set this!? */
 		val CONCATAFTER = 10000
 
-		var result = new Array[(Int,Int,Double)](0)
-		var tmparray = new Array[(Int,Int,Double)](CONCATAFTER)
+		var result = new Array[(Int,Int)](0)
+		var tmparray = new Array[(Int,Int)](CONCATAFTER)
 		var arrayIndex = 0
 
 		for(i<-0 to (candidates.length-2)) {
 			var user1 = candidates(i)
+
 			/* compare with all elements that follow */
 			for(n<-(i+1) to (candidates.length-1)) {
 				var user2 = candidates(n)
@@ -58,19 +59,19 @@ object Main extends App {
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
 					if(simvalue >= SIMTHRESHOLD) {
-						tmparray(arrayIndex) = (user1.head._1, user2.head._1, simvalue) /* (userid, userid, simvalue) */
+						tmparray(arrayIndex) = (user1.head._1, user2.head._1) /* (userid1, userid2) */
 						arrayIndex += 1
 
 						if(arrayIndex == CONCATAFTER) {
 							result = result ++ tmparray
 							arrayIndex = 0
-							tmparray = new Array[(Int,Int,Double)](CONCATAFTER)
+							tmparray = new Array[(Int,Int)](CONCATAFTER)
 						}
 					}
 				}
-			}
-			result = result ++ tmparray.filter(_ != null)
+			}			
 		}
+		result = result ++ tmparray.filter(_ != null)
 		return result
 	}
 
