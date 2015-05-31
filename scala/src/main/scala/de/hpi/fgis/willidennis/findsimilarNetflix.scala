@@ -12,9 +12,6 @@ import Array._
 
 object Main extends App {
 
-	/*
-	* 
-	*/
 	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[(Int, Array[ Iterable[(Int, Int, Int)] ] )] = {
 		val ratings = user._2
 		val result = new Array[(Int, Array[ Iterable[(Int, Int, Int)] ] )] (ratings.size)
@@ -33,12 +30,14 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ], CONCATAFTER: Int): Array[(Int,Int)] = {		
-		val SIMTHRESHOLD = 0.8 /* TODO: where else can we set this!? */
-
-		var result = new Array[(Int,Int)](0)
-		var tmparray = new Array[(Int,Int)](CONCATAFTER)
-		var arrayIndex = 0
+	/*
+	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
+	*/
+	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ], CONCATAFTER: Int): Array[(String, Int)] = {		
+		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
+		var numberOfSims = 0
+		var comparisonsRaw = 0
+		var comparisonsEffective = 0
 
 		for(i<-0 to (candidates.length-2)) {
 			var user1 = candidates(i)
@@ -54,24 +53,19 @@ object Main extends App {
 				} else {
 					sizesInRange = user1.size*SIMTHRESHOLD <= user2.size
 				}
+
+				comparisonsRaw += 1
 				
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
+					comparisonsEffective += 1
 					if(simvalue >= SIMTHRESHOLD) {
-						tmparray(arrayIndex) = (user1.head._1, user2.head._1) /* (userid1, userid2) */
-						arrayIndex += 1
-
-						if(arrayIndex == CONCATAFTER) {
-							result = result ++ tmparray
-							arrayIndex = 0
-							tmparray = new Array[(Int,Int)](CONCATAFTER)
-						}
+						numberOfSims += 1
 					}
 				}
 			}			
 		}
-		result = result ++ tmparray.filter(_ != null)
-		return result
+		return Array(("similarities",numberOfSims), ("unpruned comparisons",comparisonsRaw), ("comps after length filter",comparisonsEffective))
 	}
 
 	def parseLine(line: String, movid:Int):(Int, Int, Int) = {
@@ -148,12 +142,12 @@ object Main extends App {
 
 		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
 
-		val similarities = reduced.flatMap(compareCandidates(_, CONCATAFTER)).filter(_ != null)
+		val statistics = reduced.flatMap(compareCandidates(_, CONCATAFTER)).reduceByKey((a,b) => (a+b)).collect
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
-		similarities.saveAsTextFile(RESULTS_PATH)
-		
-		//println(s"\n\n ####### Similar pairs: ${similarities.count()} ###### \n\n")
-		println(s"\n\n ####### Ratings: ${parsed.count()} ###### \n\n")
-		println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")	
+		//calcStatistics.saveAsTextFile(RESULTS_PATH)
+				
+		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files ###### \n\n")
+		//println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
+		println(s"\n\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n\n")
 	}
 }
