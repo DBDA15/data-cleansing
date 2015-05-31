@@ -33,9 +33,8 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(Int,Int)] = {		
+	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ], CONCATAFTER: Int): Array[(Int,Int)] = {		
 		val SIMTHRESHOLD = 0.8 /* TODO: where else can we set this!? */
-		val CONCATAFTER = 10000
 
 		var result = new Array[(Int,Int)](0)
 		var tmparray = new Array[(Int,Int)](CONCATAFTER)
@@ -82,7 +81,7 @@ object Main extends App {
 
 
 	override def main(args: Array[String]) = {
-
+		var CONCATAFTER = 10000
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
@@ -96,7 +95,7 @@ object Main extends App {
 		}
 
 		if(args.size > 2) {
-			numberOfMoviesForSig = args(2).toInt
+			CONCATAFTER = args(2).toInt
 		}
 
 		if(args.size > 3) {
@@ -149,7 +148,7 @@ object Main extends App {
 
 		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
 
-		val similarities = reduced.flatMap(compareCandidates).filter(_ != null)
+		val similarities = reduced.flatMap(compareCandidates(_, CONCATAFTER)).filter(_ != null)
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		similarities.saveAsTextFile(RESULTS_PATH)
 		
