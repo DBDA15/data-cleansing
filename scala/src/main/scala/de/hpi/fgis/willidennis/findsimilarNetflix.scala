@@ -33,7 +33,7 @@ object Main extends App {
 	/*
 	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
 	*/
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ], CONCATAFTER: Int): Array[(String, Int)] = {		
+	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(String, Int)] = {		
 		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
 		var numberOfSims = 0
 		var comparisonsRaw = 0
@@ -75,7 +75,7 @@ object Main extends App {
 
 
 	override def main(args: Array[String]) = {
-		var CONCATAFTER = 10000
+		var firstNLineOfFile = -1
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
@@ -89,7 +89,7 @@ object Main extends App {
 		}
 
 		if(args.size > 2) {
-			CONCATAFTER = args(2).toInt
+			firstNLineOfFile = args(2).toInt
 		}
 
 		if(args.size > 3) {
@@ -110,7 +110,12 @@ object Main extends App {
 		/* split RDD every N files to avoid stackoverflow */
 		val splitRDDeveryNfiles = 200
 		for(i <- 2 to numberOfFiles) {
-			val thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
+			var thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
+			
+			if(firstNLineOfFile> (-1)) {
+				thisDataset = sc.parallelize(thisDataset.take(firstNLineOfFile))
+			}
+
 			if(i%splitRDDeveryNfiles==0 && i>0) {
 				fileRDDs((i/splitRDDeveryNfiles)-1) = parsed
 				parsed = thisDataset
@@ -142,7 +147,7 @@ object Main extends App {
 
 		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
 
-		val statistics = reduced.flatMap(compareCandidates(_, CONCATAFTER)).reduceByKey((a,b) => (a+b)).collect
+		val statistics = reduced.flatMap(compareCandidates).reduceByKey((a,b) => (a+b)).collect
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
 				
