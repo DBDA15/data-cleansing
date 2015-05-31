@@ -75,6 +75,8 @@ object Main extends App {
 
 
 	override def main(args: Array[String]) = {
+		val timeAtBeginning = System.currentTimeMillis
+
 		var firstNLineOfFile = -1
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
@@ -151,7 +153,7 @@ object Main extends App {
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
 				
-		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files ###### \n\n")
+		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files, ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n\n")
 		//println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
 		println(s"\n\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n\n")
 	}
