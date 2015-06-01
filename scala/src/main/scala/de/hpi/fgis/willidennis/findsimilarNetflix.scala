@@ -12,12 +12,12 @@ import Array._
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[(Int, Array[ Iterable[(Int, Int, Int)] ] )] = {
+	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[((Int,Int), Array[ Iterable[(Int, Int, Int)] ] )] = {
 		val ratings = user._2
-		val result = new Array[(Int, Array[ Iterable[(Int, Int, Int)] ] )] (ratings.size)
+		val result = new Array[((Int,Int), Array[ Iterable[(Int, Int, Int)] ] )] (ratings.size)
 		var i = 0
 		for ( rat <- ratings )  {
-			result(i) = (rat._2, Array(ratings))
+			result(i) = ((rat._2, rat._3), Array(ratings))
 			i = i+1
 		}
 		return result
