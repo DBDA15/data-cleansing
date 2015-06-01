@@ -81,7 +81,7 @@ object Main extends App {
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
-		var RESULTS_PATH = "result"
+		var NROFCORES = 1
 
 		if(args.size > 0) {
 			TRAINING_PATH = args(0)
@@ -95,7 +95,7 @@ object Main extends App {
 		}
 
 		if(args.size > 3) {
-			RESULTS_PATH = args(3)
+			NROFCORES = args(3).toInt
 		}		
 
 		var conf = new SparkConf()
@@ -153,7 +153,7 @@ object Main extends App {
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
 				
-		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
+		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
 		//println(s"\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
 		println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 	}
