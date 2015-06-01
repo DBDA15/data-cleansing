@@ -153,8 +153,8 @@ object Main extends App {
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
 				
-		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files, ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n\n")
-		//println(s"\n\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
-		println(s"\n\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n\n")
+		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
+		//println(s"\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
+		println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 	}
 }
