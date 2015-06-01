@@ -33,11 +33,11 @@ object Main extends App {
 	/*
 	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
 	*/
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(String, Int)] = {		
+	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(String, Long)] = {		
 		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
-		var numberOfSims = 0
-		var comparisonsRaw = 0
-		var comparisonsEffective = 0
+		var numberOfSims = 0.toLong
+		var comparisonsRaw = 0.toLong
+		var comparisonsEffective = 0.toLong
 
 		for(i<-0 to (candidates.length-2)) {
 			var user1 = candidates(i)
