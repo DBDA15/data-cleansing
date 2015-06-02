@@ -35,11 +35,12 @@ object Main extends App {
 	*/
 	def generateCandidates(candidates: Array[Int] ): Array[(Int,Int)] = {
 		val candLength = candidates.length
-		val result = new Array[(Int, Int)]((0.5*candLength*(candLength+1)).toInt) // Gauß'sche Summenformel
+		val result = new Array[(Int, Int)]((0.5*(candLength-1)*(candLength)).toInt) // Gauß'sche Summenformel based on candLength-1
 		var index = 0
 		for(i<-0 to (candLength-2)) {
 			for(n<-(i+1) to (candLength-1)) {
 				result(index) = (candidates(i), candidates(n))
+				index += 1
 			}			
 		}
 		return result
@@ -131,7 +132,7 @@ object Main extends App {
 		*		List of RDDs (one rdd for each bucket) would be a solution
 		* but I have an array
 		* thus run flatmap using custom method <candidateGeneration> => RDD[(int, int)]
-		* Length filter could be applied in cGen method!
+		* TODO: Length filter could be applied in cGen method!
 		*/
 
 		val candidatePairs = buckets.flatMap(generateCandidates)
