@@ -12,12 +12,13 @@ import Array._
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[((Int,Int) ,Array[Int] )] = {
+	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[((Int,Int), Array[(Int, Int)] )] = {
 		val ratings = user._2
-		val result = new Array[((Int,Int), Array[Int] )] (ratings.size)
+		val rsize = ratings.size
+		val result = new Array[((Int,Int), Array[(Int, Int)] )] (rsize)
 		var i = 0
 		for ( rat <- ratings )  {
-			result(i) = ((rat._2, rat._3), Array(user._1))
+			result(i) = ( (rat._2, rat._3), Array((user._1, rsize)) ) // [ (movid, stars), [(uid, numberOfRatings)] ] => Array only to allow concat in following step
 			i = i+1
 		}
 		return result
@@ -33,17 +34,31 @@ object Main extends App {
 	/*
 	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
 	*/
-	def generateCandidates(candidates: Array[Int] ): Array[(Int,Int)] = {
+	def generateCandidates(candidates: Array[(Int, Int)] ): Array[(Int,Int)] = {
+		val SIMTHRESHOLD = 0.9
+
 		val candLength = candidates.length
 		val result = new Array[(Int, Int)]((0.5*(candLength-1)*(candLength)).toInt) // Gauß'sche Summenformel based on candLength-1
 		var index = 0
 		for(i<-0 to (candLength-2)) {
+			val user1 = candidates(i)
 			for(n<-(i+1) to (candLength-1)) {
-				result(index) = (candidates(i), candidates(n))
-				index += 1
+				val user2 = candidates(n)
+				// Length-filter
+				var sizesInRange = false
+				if(user1._2 < user2._2) {
+					sizesInRange = user2._2*SIMTHRESHOLD <= user1._2
+				} else {
+					sizesInRange = user1._2*SIMTHRESHOLD <= user2._2
+				}
+			
+				if(sizesInRange) {
+					result(index) = (user1._1, user2._1)
+					index += 1
+				}
 			}			
 		}
-		return result
+		return result.filter(_ != null)
 	}
 
 	def parseLine(line: String, movid:Int):(Int, Int, Int) = {
