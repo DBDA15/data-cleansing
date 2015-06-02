@@ -12,12 +12,12 @@ import Array._
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[((Int,Int), Array[ Iterable[(Int, Int, Int)] ] )] = {
+	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[((Int,Int) ,Array[Int] )] = {
 		val ratings = user._2
-		val result = new Array[((Int,Int), Array[ Iterable[(Int, Int, Int)] ] )] (ratings.size)
+		val result = new Array[((Int,Int), Array[Int] )] (ratings.size)
 		var i = 0
 		for ( rat <- ratings )  {
-			result(i) = ((rat._2, rat._3), Array(ratings))
+			result(i) = ((rat._2, rat._3), Array(user._1))
 			i = i+1
 		}
 		return result
@@ -33,39 +33,16 @@ object Main extends App {
 	/*
 	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
 	*/
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(String, Long)] = {		
-		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
-		var numberOfSims = 0.toLong
-		var comparisonsRaw = 0.toLong
-		var comparisonsEffective = 0.toLong
-
-		for(i<-0 to (candidates.length-2)) {
-			var user1 = candidates(i)
-
-			/* compare with all elements that follow */
-			for(n<-(i+1) to (candidates.length-1)) {
-				var user2 = candidates(n)
-
-				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
-				var sizesInRange = false
-				if(user1.size<user2.size) {
-					sizesInRange = user2.size*SIMTHRESHOLD <= user1.size
-				} else {
-					sizesInRange = user1.size*SIMTHRESHOLD <= user2.size
-				}
-
-				comparisonsRaw += 1
-				
-				if(sizesInRange) {
-					val simvalue = calculateSimilarity(user1, user2)
-					comparisonsEffective += 1
-					if(simvalue >= SIMTHRESHOLD) {
-						numberOfSims += 1
-					}
-				}
+	def generateCandidates(candidates: Array[Int] ): Array[(Int,Int)] = {
+		val candLength = candidates.length
+		val result = new Array[(Int, Int)]((0.5*candLength*(candLength+1)).toInt) // Gauß'sche Summenformel
+		var index = 0
+		for(i<-0 to (candLength-2)) {
+			for(n<-(i+1) to (candLength-1)) {
+				result(index) = (candidates(i), candidates(n))
 			}			
 		}
-		return Array(("similarities",numberOfSims), ("unpruned comparisons",comparisonsRaw), ("comps after length filter",comparisonsEffective))
+		return result
 	}
 
 	def parseLine(line: String, movid:Int):(Int, Int, Int) = {
@@ -134,28 +111,45 @@ object Main extends App {
 		}
 
 		/* group ratings by user */
-		val users = parsed.groupBy(_._1) /* users: org.apache.spark.rdd.RDD[(Int, Iterable[(Int, Int, Int)])] */
+		val fullusers = parsed.groupBy(_._1) /* fullusers: org.apache.spark.rdd.RDD[(Int, Iterable[(Int, Int, Int)])] */
 		/* TODO: users has userID as key and then repeated in tuple. unnecessary! */
 
 
 		/* make signature
 		* 	yields RDD[(signature, user)].
-		*	user represented by iterable of all his ratings.
-		*	formally RDD[(String, Array[Iterable[(Int, Int, Int)])])
+		*	user represented by only his ID!.
 		*/
-		val signed = users.flatMap(determineSignature)
+		val signed = fullusers.flatMap(determineSignature)
 
 		/* reduce
 		*/
 
-		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
+		val buckets = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
 
-		val statistics = reduced.flatMap(compareCandidates).reduceByKey((a,b) => (a+b)).collect
-		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
-		//calcStatistics.saveAsTextFile(RESULTS_PATH)
+		/* self-join (or cartesian?) for candidate generation
+		* with rdd I could do myrdd.cartesian(myrdd).filter(a => a._1 > a._2)
+		*		List of RDDs (one rdd for each bucket) would be a solution
+		* but I have an array
+		* thus run flatmap using custom method <candidateGeneration> => RDD[(int, int)]
+		* Length filter could be applied in cGen method!
+		*/
+
+		val candidatePairs = buckets.flatMap(generateCandidates)
+
+		// TODO: remove dups that happen due to occurrences in multiple buckets
+
+		// join data
+		// use first id to join one. than map to get other key. than join second
+		val join1 = candidatePairs.join(fullusers)
+		val join2prep = join1.map(a => (a._2._1, (a._1, a._2._2) ) )
+		val join2 = join2prep.join(fullusers)
+		// yields: RDD[(Int, ((Int, Iterable), Iterable))]
+		
+		// do comparison
+		val result = join2.map(a => (a._1, a._2._1._1, calculateSimilarity(a._2._1._2, a._2._2)))
+		//result.saveAsTextFile(RESULTS_PATH)
 				
 		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
-		//println(s"\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
-		println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
+		println(s"\n ####### Similarities: ${result.count()} ###### \n")
 	}
 }
