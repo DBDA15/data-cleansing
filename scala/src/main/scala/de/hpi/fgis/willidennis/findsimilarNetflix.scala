@@ -54,6 +54,7 @@ object Main extends App {
 
 	override def main(args: Array[String]) = {
 		val timeAtBeginning = System.currentTimeMillis
+		val SIMTHRESHOLD = 0.9
 
 		var firstNLineOfFile = -1
 		var numberOfFiles = 4
@@ -147,7 +148,7 @@ object Main extends App {
 		// yields: RDD[(Int, ((Int, Iterable), Iterable))]
 		
 		// do comparison
-		val result = join2.map(a => (a._1, a._2._1._1, calculateSimilarity(a._2._1._2, a._2._2)))
+		val result = join2.map(a => (a._1, a._2._1._1, calculateSimilarity(a._2._1._2, a._2._2))).filter(_._3 > SIMTHRESHOLD)
 		//result.saveAsTextFile(RESULTS_PATH)
 				
 		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
