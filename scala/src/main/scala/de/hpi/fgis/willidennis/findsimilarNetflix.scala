@@ -103,22 +103,23 @@ object Main extends App {
 		conf.set("spark.executor.memory", "4g")
 		val sc = new SparkContext(conf)
 
-		// build empty RDD, not that empty though
-		var i = 1
-		var parsed = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
+		/* File input
+		*
+		*/
+		var parsed = sc.parallelize(Array[(Int, Int, Int)]())	// build empty RDD
 
 		val fileRDDs = new Array[org.apache.spark.rdd.RDD[(Int, Int, Int)]](numberOfFiles/200)
 
 		/* split RDD every N files to avoid stackoverflow */
 		val splitRDDeveryNfiles = 200
-		for(i <- 2 to numberOfFiles) {
+		for(i <- 1 to numberOfFiles) {
 			var thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
 			
 			if(firstNLineOfFile> (-1)) {
 				thisDataset = sc.parallelize(thisDataset.take(firstNLineOfFile))
 			}
 
-			if(i%splitRDDeveryNfiles==0 && i>0) {
+			if(i%splitRDDeveryNfiles==0) {
 				fileRDDs((i/splitRDDeveryNfiles)-1) = parsed
 				parsed = thisDataset
 			}
