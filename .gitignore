@@ -4,6 +4,7 @@ java/.*
 *~
 
 scala/target
+flink/target
 
 logs/
 netflixdata/
