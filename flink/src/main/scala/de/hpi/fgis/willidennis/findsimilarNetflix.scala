@@ -3,16 +3,19 @@ package de.hpi.fgis.willidennis
 import org.apache.flink.api.scala._
 
 case class Rating(user:Int, movie:Int, stars:Int)
+case class SignatureKey(movie:Int, stars:Int)
+case class NumberOfRatings(user:Int, number:Int)
+case class UserRatings(user:Int, ratings:Iterable[Rating])
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[Rating]) ) : Array[((Int,Int), Array[(Int, Int)] )] = {
-		val ratings = user._2
-		val rsize = ratings.size
-		val result = new Array[((Int,Int), Array[(Int, Int)] )] (rsize)
+	def determineSignature (user: UserRatings ) : Array[(SignatureKey, Array[NumberOfRatings] )] = {
+		val rsize = user.ratings.size
+		val result = new Array[(SignatureKey, Array[NumberOfRatings])] (rsize)
 		var i = 0
-		for ( rat <- ratings )  {
-			result(i) = ( (rat.movie, rat.stars), Array((user._1, rsize)) ) // [ (movid, stars), [(uid, numberOfRatings)] ] => Array only to allow concat in following step
+		for ( rat <- user.ratings )  {
+			result(i) = ( SignatureKey(rat.movie, rat.stars),
+						  Array(NumberOfRatings(user.user, rsize)) ) // Array only to allow concat in following step
 			i = i+1
 		}
 		return result
