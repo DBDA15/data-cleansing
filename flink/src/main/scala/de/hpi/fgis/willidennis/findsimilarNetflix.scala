@@ -45,19 +45,19 @@ object Main extends App {
 				} else {
 					sizesInRange = user1._2*SIMTHRESHOLD <= user2._2
 				}
-			
+
 				if(sizesInRange) {
 					result(index) = (user1._1, user2._1)
 					index += 1
 				}
-			}			
+			}
 		}
 		return result.filter(_ != null)
 	}
 
-	def parseLine(line: String, movid:Int):(Int, Int, Int) = {
+	def parseLine(line: String, movid:Int):Rating = {
 		val splitted = line.split(",")
-		return (splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
+		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
 
@@ -101,8 +101,11 @@ object Main extends App {
 			mapped = mapped.union(filtered.map(line => parseLine(line,i)))
 		}
 
-		mapped.print()
-		
+		val users = mapped.groupBy("movie")
+		// val signatures = users.flatMap(determineSignature) // flatMap only works with a DataSet, use mapPartition?
+		// val buckets = signatures.reduceGroup( (a, b) => concat(a,b)).filter(_.size > 1)
+		mapped.writeAsText("file:///tmp/flink-log.txt")
+
 		env.execute
 
 	}
