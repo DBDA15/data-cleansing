@@ -2,23 +2,25 @@ package de.hpi.fgis.willidennis
 
 import org.apache.flink.api.scala._
 
+case class Rating(user:Int, movie:Int, stars:Int)
+
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[((Int,Int), Array[(Int, Int)] )] = {
+	def determineSignature (user: (Int, Iterable[Rating]) ) : Array[((Int,Int), Array[(Int, Int)] )] = {
 		val ratings = user._2
 		val rsize = ratings.size
 		val result = new Array[((Int,Int), Array[(Int, Int)] )] (rsize)
 		var i = 0
 		for ( rat <- ratings )  {
-			result(i) = ( (rat._2, rat._3), Array((user._1, rsize)) ) // [ (movid, stars), [(uid, numberOfRatings)] ] => Array only to allow concat in following step
+			result(i) = ( (rat.movie, rat.stars), Array((user._1, rsize)) ) // [ (movid, stars), [(uid, numberOfRatings)] ] => Array only to allow concat in following step
 			i = i+1
 		}
 		return result
 	}
 
-	def calculateSimilarity(user1: Iterable[(Int, Int, Int)], user2: Iterable[(Int, Int, Int)]) : Double = {
-		val u1set = user1.map(x => (x._2, x._3)).toSet
-		val u2set = user2.map(x => (x._2, x._3)).toSet
+	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
+		val u1set = user1.map(x => (x.movie, x.stars)).toSet
+		val u2set = user2.map(x => (x.movie, x.stars)).toSet
 
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
@@ -82,12 +84,12 @@ object Main extends App {
 
 		if(args.size > 3) {
 			NROFCORES = args(3).toInt
-		}		
+		}
 
 		val env = ExecutionEnvironment.getExecutionEnvironment
 
-		var mapped = env.fromCollection(Array[(Int, Int, Int)]())
-		
+		var mapped = env.fromCollection(Array[Rating]())
+
 
 		/* File input
 		*
