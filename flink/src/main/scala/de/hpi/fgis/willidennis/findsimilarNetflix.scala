@@ -1,24 +1,23 @@
 package de.hpi.fgis.willidennis
 
 import org.apache.flink.api.scala._
+import org.apache.flink.util.Collector
+import Array._
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
-case class NumberOfRatings(user:Int, number:Int)
+case class NumberOfRatingsPerUser(user:Int, number:Int)
 case class UserRatings(user:Int, ratings:Iterable[Rating])
 
 object Main extends App {
 
-	def determineSignature (user: UserRatings ) : Array[(SignatureKey, Array[NumberOfRatings] )] = {
-		val rsize = user.ratings.size
-		val result = new Array[(SignatureKey, Array[NumberOfRatings])] (rsize)
-		var i = 0
-		for ( rat <- user.ratings )  {
-			result(i) = ( SignatureKey(rat.movie, rat.stars),
-						  Array(NumberOfRatings(user.user, rsize)) ) // Array only to allow concat in following step
-			i = i+1
+	def determineSignature (ratings: Iterator[Rating], out: Collector[(SignatureKey, Array[NumberOfRatingsPerUser]) ] ) {
+		val rsize = ratings.length
+		for ( rat <- ratings )  {
+			println("collecting!")
+			out.collect( (SignatureKey(rat.movie, rat.stars),
+						  Array(NumberOfRatingsPerUser(rat.user, rsize)) ) ) // Array only to allow concat in following step
 		}
-		return result
 	}
 
 	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
@@ -104,10 +103,27 @@ object Main extends App {
 			mapped = mapped.union(filtered.map(line => parseLine(line,i)))
 		}
 
-		val users = mapped.groupBy("movie")
-		// val signatures = users.flatMap(determineSignature) // flatMap only works with a DataSet, use mapPartition?
-		// val buckets = signatures.reduceGroup( (a, b) => concat(a,b)).filter(_.size > 1)
-		mapped.writeAsText("file:///tmp/flink-log.txt")
+		val users = mapped.groupBy("user")
+
+		// TODO: unfortunately I couldnt get this code to work (resulting dataset is empty):
+		//val signed = users.reduceGroup((ratsPerUserIter, out: Collector[ ]) => determineSignature(ratsPerUserIter, out))
+
+		// so I copied this from here: http://ci.apache.org/projects/flink/flink-docs-release-0.7/dataset_transformations.html#groupreduce-on-grouped-dataset
+		val signed = users.reduceGroup {
+		  (in, out: Collector[(SignatureKey, Array[NumberOfRatingsPerUser])]) =>
+		    in foreach (x => out.collect(
+				(SignatureKey(x.movie, x.stars),
+						  Array(NumberOfRatingsPerUser(x.user, in.length)) )
+				))
+    	}
+
+		// groupby signature
+		// reduceGroup to concatenate all Array[NumberOfRatingsPerUser] to a bucket containing all users that have that sig
+		val buckets = signed.groupBy(0).reduceGroup( usersWithSameSigIterator => usersWithSameSigIterator.foldLeft(Array[NumberOfRatingsPerUser]())((a,b) => a++b._2)) //.filter(_.size > 1)
+
+		// resulting output is 19 times [Lde.hpi.fgis.willidennis.NumberOfRatingsPerUser;@address
+		// 19 makes sense for 4 files!
+		buckets.writeAsText("file:///tmp/flink-log.txt")
 
 		env.execute
 
