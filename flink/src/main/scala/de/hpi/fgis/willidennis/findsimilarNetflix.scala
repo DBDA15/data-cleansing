@@ -62,6 +62,44 @@ object Main extends App {
 		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
+	/*
+	 	* 	 candidates: Array[ All Ratings of a User ])
+    *    out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
+    */
+	def compareCandidates(candidates: Array[ Iterable[Rating] ]): Array[(String, Long)] = {
+		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
+		var numberOfSims = 0.toLong
+		var comparisonsRaw = 0.toLong
+		var comparisonsEffective = 0.toLong
+
+		for(i<-0 to (candidates.length-2)) {
+			var user1 = candidates(i)
+
+			/* compare with all elements that follow */
+			for(n<-(i+1) to (candidates.length-1)) {
+				var user2 = candidates(n)
+
+				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
+				var sizesInRange = false
+				if(user1.size<user2.size) {
+					sizesInRange = user2.size*SIMTHRESHOLD <= user1.size
+				} else {
+					sizesInRange = user1.size*SIMTHRESHOLD <= user2.size
+				}
+
+				comparisonsRaw += 1
+
+				if(sizesInRange) {
+					val simvalue = calculateSimilarity(user1, user2)
+					comparisonsEffective += 1
+					if(simvalue >= SIMTHRESHOLD) {
+						numberOfSims += 1
+					}
+				}
+			}
+		}
+		return Array(("similarities",numberOfSims), ("unpruned comparisons",comparisonsRaw), ("comps after length filter",comparisonsEffective))
+	}
 
 	override def main(args: Array[String]) = {
 		val timeAtBeginning = System.currentTimeMillis
@@ -90,7 +128,7 @@ object Main extends App {
 
 		val env = ExecutionEnvironment.getExecutionEnvironment
 
-		var mapped = env.fromCollection(Array[Rating]())
+		var mapped: DataSet[Rating] = env.fromCollection(Array[Rating]())
 
 
 		/* File input
@@ -103,27 +141,34 @@ object Main extends App {
 			mapped = mapped.union(filtered.map(line => parseLine(line,i)))
 		}
 
-		val users = mapped.groupBy("user")
+		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
 
 		// TODO: unfortunately I couldnt get this code to work (resulting dataset is empty):
 		//val signed = users.reduceGroup((ratsPerUserIter, out: Collector[ ]) => determineSignature(ratsPerUserIter, out))
 
 		// so I copied this from here: http://ci.apache.org/projects/flink/flink-docs-release-0.7/dataset_transformations.html#groupreduce-on-grouped-dataset
 		val signed = users.reduceGroup {
-		  (in, out: Collector[(SignatureKey, Array[NumberOfRatingsPerUser])]) =>
+		  (in, out: Collector[(SignatureKey, Array[Rating])]) =>
 		    in foreach (x => out.collect(
 				(SignatureKey(x.movie, x.stars),
-						  Array(NumberOfRatingsPerUser(x.user, in.length)) )
+						  Array(Rating(x.user, x.movie, x.stars)))
 				))
     	}
 
-		// groupby signature
-		// reduceGroup to concatenate all Array[NumberOfRatingsPerUser] to a bucket containing all users that have that sig
-		val buckets = signed.groupBy(0).reduceGroup( usersWithSameSigIterator => usersWithSameSigIterator.foldLeft(Array[NumberOfRatingsPerUser]())((a,b) => a++b._2)) //.filter(_.size > 1)
+		val SIGNATURE = 0
+		val buckets = signed.groupBy(SIGNATURE).reduceGroup {
+			(in:  Iterator[ (SignatureKey, Array[Rating]) ], out: Collector[Iterable[Rating]])  =>
+				in foreach((x: (SignatureKey, Array[Rating])) => out.collect(x._2))
+		}
+		buckets.writeAsText("file:///tmp/flink-buckets.txt")
+		//val similar = buckets.flatMap(x => compareCandidates(x))
+		// val buckets: DataSet[Array[NumberOfRatingsPerUser]] = signed.groupBy(0).reduceGroup(
+		// 		usersWithSameSigIterator => usersWithSameSigIterator.foldLeft(
+		// 			Array[NumberOfRatingsPerUser]())((a,b) => a++b._2)) //.filter(_.size > 1)
 
 		// resulting output is 19 times [Lde.hpi.fgis.willidennis.NumberOfRatingsPerUser;@address
 		// 19 makes sense for 4 files!
-		buckets.writeAsText("file:///tmp/flink-log.txt")
+		// similar.writeAsText("file:///tmp/flink-log.txt")
 
 		env.execute
 
