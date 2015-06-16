@@ -15,13 +15,15 @@ case class SignatureKey(movie:Int, stars:Int)
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[Rating]) ) : Array[((Int,Int), Array[ Iterable[Rating] ] )] = {
+	def determineSignature (user: (Int, Iterable[Rating]) ) : Array[(SignatureKey, Array[ Iterable[Rating] ] )] = {
 		val ratings = user._2
-		val result = new Array[((Int,Int), Array[ Iterable[Rating] ] )] (ratings.size)
-		var i = 0
-		for ( rat <- ratings )  {
-			result(i) = ((rat.movie, rat.stars), Array(ratings))
-			i = i+1
+		
+		val requiredSigLength = ratings.size - math.ceil(0.9*ratings.size) + 1 // |u|-ceil(t*|u|)+1
+		val result = new Array[(SignatureKey, Array[ Iterable[Rating] ] )] (requiredSigLength.toInt)
+		val ratingsArr = ratings.toArray.sortBy(_.movie)
+		for ( i<-0 to requiredSigLength.toInt-1 )  {
+			val rat = ratingsArr(i)
+			result(i) = (SignatureKey(rat.movie, rat.stars), Array(ratings))
 		}
 		return result
 	}
@@ -33,9 +35,6 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	/*
-	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
-	*/
 	def compareCandidates(candidates: Array[ Iterable[Rating] ]): Array[(String, Long)] = {		
 		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
 		var numberOfSims = 0.toLong
