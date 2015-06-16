@@ -1,8 +1,8 @@
 package de.hpi.fgis.willidennis
 
 import org.apache.flink.api.scala._
+import org.apache.flink.core.fs.FileSystem
 import org.apache.flink.util.Collector
-import Array._
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
@@ -66,18 +66,18 @@ object Main extends App {
 	 	* 	 candidates: Array[ All Ratings of a User ])
     *    out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
     */
-	def compareCandidates(candidates: Array[ Iterable[Rating] ]): Array[(String, Long)] = {
+	def compareCandidates(candidatesArray: Array[ Array[Rating] ]): Map[String, Long] = {
 		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
-
-		for(i<-0 to (candidates.length-2)) {
-			var user1 = candidates(i)
+		
+		for(i<-0 to (candidatesArray.length-2)) {
+			var user1 = candidatesArray(i)
 
 			/* compare with all elements that follow */
-			for(n<-(i+1) to (candidates.length-1)) {
-				var user2 = candidates(n)
+			for(n<-(i+1) to (candidatesArray.length-1)) {
+				var user2 = candidatesArray(n)
 
 				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
 				var sizesInRange = false
@@ -98,7 +98,26 @@ object Main extends App {
 				}
 			}
 		}
-		return Array(("similarities",numberOfSims), ("unpruned comparisons",comparisonsRaw), ("comps after length filter",comparisonsEffective))
+		return Map(	"similarities" -> numberOfSims,
+								"unpruned comparisons" -> comparisonsRaw,
+								"comps after length filter" -> comparisonsEffective)
+	}
+
+	def groupAllUsersRatings(in: Iterator[Rating], out: Collector[(SignatureKey, Array[Rating])])  {
+			val allRatingsOfUser = in.toArray
+			allRatingsOfUser foreach((x: Rating) => out.collect(
+				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))
+	}
+
+	def parseFiles(env: ExecutionEnvironment, numberOfFiles: Int, TRAINING_PATH: String): DataSet[Rating]  = {
+		var mapped: DataSet[Rating] = env.fromCollection(Array[Rating]())
+
+		for(i <- 1 to numberOfFiles) {
+			val text = env.readTextFile(TRAINING_PATH + "/mv_" + "%07d".format(i) + ".txt");
+			val filtered = text.filter(line => ! line.contains(":"))
+			mapped = mapped.union(filtered.map(line => parseLine(line,i)))
+		}
+		return mapped
 	}
 
 	override def main(args: Array[String]) = {
@@ -106,10 +125,10 @@ object Main extends App {
 		val SIMTHRESHOLD = 0.9
 
 		var firstNLineOfFile = -1
-		var numberOfFiles = 4
+		var numberOfFiles = 5
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set"
-		var NROFCORES = 1
+		var NROFCORES: Int = 1
 
 		if(args.size > 0) {
 			TRAINING_PATH = args(0)
@@ -127,50 +146,21 @@ object Main extends App {
 		}
 
 		val env = ExecutionEnvironment.getExecutionEnvironment
-
-		var mapped: DataSet[Rating] = env.fromCollection(Array[Rating]())
-
-
-		/* File input
-		*
-		*/
-		/* split RDD every N files to avoid stackoverflow */
-		for(i <- 1 to numberOfFiles) {
-			val text = env.readTextFile(TRAINING_PATH + "/mv_" + "%07d".format(i) + ".txt");
-			val filtered = text.filter(line => ! line.contains(":"))
-			mapped = mapped.union(filtered.map(line => parseLine(line,i)))
-		}
+		env.setParallelism(NROFCORES)
+		var mapped = parseFiles(env, numberOfFiles, TRAINING_PATH)
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-
-		// TODO: unfortunately I couldnt get this code to work (resulting dataset is empty):
-		//val signed = users.reduceGroup((ratsPerUserIter, out: Collector[ ]) => determineSignature(ratsPerUserIter, out))
-
-		// so I copied this from here: http://ci.apache.org/projects/flink/flink-docs-release-0.7/dataset_transformations.html#groupreduce-on-grouped-dataset
-		val signed = users.reduceGroup {
-		  (in, out: Collector[(SignatureKey, Array[Rating])]) =>
-		    in foreach (x => out.collect(
-				(SignatureKey(x.movie, x.stars),
-						  Array(Rating(x.user, x.movie, x.stars)))
-				))
-    	}
+		val signed: DataSet[(SignatureKey, Array[Rating])] = users.reduceGroup(groupAllUsersRatings _)
+		signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
-		val buckets = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (SignatureKey, Array[Rating]) ], out: Collector[Iterable[Rating]])  =>
-				in foreach((x: (SignatureKey, Array[Rating])) => out.collect(x._2))
+		val similar = signed.groupBy(SIGNATURE).reduceGroup {
+			(in:  Iterator[ (SignatureKey, Array[Rating]) ], out: Collector[ Map[String, Long] ])  =>
+				val buckets = in.map(_._2).toArray
+				out.collect(compareCandidates(buckets))
 		}
-		buckets.writeAsText("file:///tmp/flink-buckets.txt")
-		//val similar = buckets.flatMap(x => compareCandidates(x))
-		// val buckets: DataSet[Array[NumberOfRatingsPerUser]] = signed.groupBy(0).reduceGroup(
-		// 		usersWithSameSigIterator => usersWithSameSigIterator.foldLeft(
-		// 			Array[NumberOfRatingsPerUser]())((a,b) => a++b._2)) //.filter(_.size > 1)
+		similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
 
-		// resulting output is 19 times [Lde.hpi.fgis.willidennis.NumberOfRatingsPerUser;@address
-		// 19 makes sense for 4 files!
-		// similar.writeAsText("file:///tmp/flink-log.txt")
-
-		env.execute
-
+		env.execute("data-cleansing")
 	}
 }
