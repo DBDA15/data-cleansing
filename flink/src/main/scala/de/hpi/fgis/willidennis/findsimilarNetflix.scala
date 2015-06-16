@@ -66,7 +66,7 @@ object Main extends App {
 	 	* 	 candidates: Array[ All Ratings of a User ])
     *    out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
     */
-	def compareCandidates(candidatesArray: Array[ Array[Rating] ]): Map[String, Long] = {
+	def compareCandidates(candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
 		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
@@ -98,9 +98,8 @@ object Main extends App {
 				}
 			}
 		}
-		return Map(	"similarities" -> numberOfSims,
-								"unpruned comparisons" -> comparisonsRaw,
-								"comps after length filter" -> comparisonsEffective)
+		return Array(	("similarities", numberOfSims), ("unpruned comparisons", comparisonsRaw),
+			("comps after length filter", comparisonsEffective))
 	}
 
 	def groupAllUsersRatings(in: Iterator[Rating], out: Collector[(SignatureKey, Array[Rating])])  {
@@ -128,7 +127,7 @@ object Main extends App {
 		var numberOfFiles = 5
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set"
-		var NROFCORES: Int = 1
+		var NROFCORES: Int = 4
 
 		if(args.size > 0) {
 			TRAINING_PATH = args(0)
@@ -151,16 +150,22 @@ object Main extends App {
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
 		val signed: DataSet[(SignatureKey, Array[Rating])] = users.reduceGroup(groupAllUsersRatings _)
-		signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
+		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
-		val similar = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (SignatureKey, Array[Rating]) ], out: Collector[ Map[String, Long] ])  =>
+		val similar: DataSet[Array[(String, Long)]] = signed.groupBy(SIGNATURE).reduceGroup {
+			(in:  Iterator[ (SignatureKey, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
 				val buckets = in.map(_._2).toArray
 				out.collect(compareCandidates(buckets))
 		}
-		similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
-
+		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
+		val aggregatedStats = similar.reduce {
+			(x: Array[(String, Long)], y: Array[(String, Long)]) =>
+				Array( (x(0)._1, x(0)._2 + y(0)._2), (x(1)._1, x(1)._2 + y(1)._2), (x(2)._1, x(2)._2 + y(2)._2))
+		}
+		val printableAggregatedStats = aggregatedStats.map(_.toList)
+		printableAggregatedStats.writeAsText("file:///tmp/flink-aggregated-stats", writeMode=FileSystem.WriteMode.OVERWRITE)
 		env.execute("data-cleansing")
+		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
 	}
 }
