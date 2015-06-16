@@ -10,22 +10,25 @@ import org.apache.log4j.Level
 
 import Array._
 
+case class Rating(user:Int, movie:Int, stars:Int)
+case class SignatureKey(movie:Int, stars:Int)
+
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[(Int, Int, Int)]) ) : Array[((Int,Int), Array[ Iterable[(Int, Int, Int)] ] )] = {
+	def determineSignature (user: (Int, Iterable[Rating]) ) : Array[((Int,Int), Array[ Iterable[Rating] ] )] = {
 		val ratings = user._2
-		val result = new Array[((Int,Int), Array[ Iterable[(Int, Int, Int)] ] )] (ratings.size)
+		val result = new Array[((Int,Int), Array[ Iterable[Rating] ] )] (ratings.size)
 		var i = 0
 		for ( rat <- ratings )  {
-			result(i) = ((rat._2, rat._3), Array(ratings))
+			result(i) = ((rat.movie, rat.stars), Array(ratings))
 			i = i+1
 		}
 		return result
 	}
 
-	def calculateSimilarity(user1: Iterable[(Int, Int, Int)], user2: Iterable[(Int, Int, Int)]) : Double = {
-		val u1set = user1.map(x => (x._2, x._3)).toSet
-		val u2set = user2.map(x => (x._2, x._3)).toSet
+	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
+		val u1set = user1.map(x => (x.movie, x.stars)).toSet
+		val u2set = user2.map(x => (x.movie, x.stars)).toSet
 
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
@@ -33,7 +36,7 @@ object Main extends App {
 	/*
 	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
 	*/
-	def compareCandidates(candidates: Array[ Iterable[(Int, Int, Int)] ]): Array[(String, Long)] = {		
+	def compareCandidates(candidates: Array[ Iterable[Rating] ]): Array[(String, Long)] = {		
 		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
@@ -68,9 +71,9 @@ object Main extends App {
 		return Array(("similarities",numberOfSims), ("unpruned comparisons",comparisonsRaw), ("comps after length filter",comparisonsEffective))
 	}
 
-	def parseLine(line: String, movid:Int):(Int, Int, Int) = {
+	def parseLine(line: String, movid:Int): Rating = {
 		val splitted = line.split(",")
-		return (splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
+		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
 
@@ -103,22 +106,23 @@ object Main extends App {
 		conf.set("spark.executor.memory", "4g")
 		val sc = new SparkContext(conf)
 
-		// build empty RDD, not that empty though
-		var i = 1
-		var parsed = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, 1))
+		/* File input
+		*
+		*/
+		var parsed = sc.parallelize(Array[Rating]())	// build empty RDD
 
-		val fileRDDs = new Array[org.apache.spark.rdd.RDD[(Int, Int, Int)]](numberOfFiles/200)
+		val fileRDDs = new Array[org.apache.spark.rdd.RDD[Rating]](numberOfFiles/200)
 
 		/* split RDD every N files to avoid stackoverflow */
 		val splitRDDeveryNfiles = 200
-		for(i <- 2 to numberOfFiles) {
+		for(i <- 1 to numberOfFiles) {
 			var thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
 			
 			if(firstNLineOfFile> (-1)) {
 				thisDataset = sc.parallelize(thisDataset.take(firstNLineOfFile))
 			}
 
-			if(i%splitRDDeveryNfiles==0 && i>0) {
+			if(i%splitRDDeveryNfiles==0) {
 				fileRDDs((i/splitRDDeveryNfiles)-1) = parsed
 				parsed = thisDataset
 			}
@@ -133,14 +137,11 @@ object Main extends App {
 		}
 
 		/* group ratings by user */
-		val users = parsed.groupBy(_._1) /* users: org.apache.spark.rdd.RDD[(Int, Iterable[(Int, Int, Int)])] */
+		val users = parsed.groupBy(_.user)
 		/* TODO: users has userID as key and then repeated in tuple. unnecessary! */
 
 
 		/* make signature
-		* 	yields RDD[(signature, user)].
-		*	user represented by iterable of all his ratings.
-		*	formally RDD[(String, Array[Iterable[(Int, Int, Int)])])
 		*/
 		val signed = users.flatMap(determineSignature)
 
