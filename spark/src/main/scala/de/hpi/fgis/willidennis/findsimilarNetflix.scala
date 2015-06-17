@@ -8,6 +8,7 @@ import org.apache.spark.rdd.RDD
 import org.apache.log4j.Logger
 import org.apache.log4j.Level
 
+import scala.collection.mutable.ArrayBuffer
 import Array._
 
 case class Rating(user:Int, movie:Int, stars:Int)
@@ -19,7 +20,7 @@ object Main extends App {
 		val SIMTHRESHOLD = 0.9
 		val ratings = user._2
 		
-		val requiredSigLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size) + 1 // |u|-ceil(t*|u|)+1
+		val requiredSigLength = ratings.size// - math.ceil(SIMTHRESHOLD*ratings.size) + 1 // |u|-ceil(t*|u|)+1
 
 		val result = new Array[(SignatureKey, Array[ Iterable[Rating] ] )] (requiredSigLength.toInt)
 		val ratingsArr = ratings.toArray.sortBy(_.movie)
@@ -37,11 +38,13 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[Rating] ]): Array[(String, Long)] = {		
+	def compareCandidates(candidates: Array[ Iterable[Rating] ]): ArrayBuffer[(Int, Int)] = {		
 		val SIMTHRESHOLD = 0.9
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
+
+		val result = ArrayBuffer[(Int, Int)]()
 
 		for(i<-0 to (candidates.length-2)) {
 			var user1 = candidates(i)
@@ -57,11 +60,12 @@ object Main extends App {
 					comparisonsEffective += 1
 					if(simvalue >= SIMTHRESHOLD) {
 						numberOfSims += 1
+						result.append((user1.head.user, user2.head.user))
 					}
 				}
 			}			
 		}
-		return Array(("similarities",numberOfSims), ("unpruned comparisons",comparisonsRaw), ("comps after length filter",comparisonsEffective))
+		return result
 	}
 
 	def lengthFilter(size1: Int, size2: Int, threshold:Double): Boolean = {
@@ -145,14 +149,21 @@ object Main extends App {
 		/* reduce
 		*/
 
-		val reduced = signed.reduceByKey((a,b) => concat(a,b)).values.filter(_.size > 1)
+		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
 
-		val statistics = reduced.flatMap(compareCandidates).reduceByKey((a,b) => (a+b)).collect
+		val similarities = buckets.flatMap(compareCandidates)
+		
+		println(s"\n ####### Similarities before duplicate removal: ${similarities.count()} ###### \n\n")
+
+		val noduplicates = similarities.map(x => (x, 1)).reduceByKey(_ + _)
+
+		println(s"\n ####### Similarities after duplicate removal: ${noduplicates.count()} ###### \n\n")
+
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
-				
+		
 		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
 		//println(s"\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
-		println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
+		//println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 	}
 }
