@@ -20,7 +20,7 @@ object Main extends App {
 		val SIMTHRESHOLD = 0.9
 		val ratings = user._2
 		
-		val requiredSigLength = ratings.size// - math.ceil(SIMTHRESHOLD*ratings.size) + 1 // |u|-ceil(t*|u|)+1
+		val requiredSigLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size) + 1 // |u|-ceil(t*|u|)+1
 
 		val result = new Array[(SignatureKey, Array[ Iterable[Rating] ] )] (requiredSigLength.toInt)
 		val ratingsArr = ratings.toArray.sortBy(_.movie)
@@ -152,12 +152,13 @@ object Main extends App {
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
 
 		val similarities = buckets.flatMap(compareCandidates)
-		
-		println(s"\n ####### Similarities before duplicate removal: ${similarities.count()} ###### \n\n")
+		val simcount = similarities.count
+		println(s"\n ####### Similarities before duplicate removal: ${simcount} ###### \n\n")
 
 		val noduplicates = similarities.map(x => (x, 1)).reduceByKey(_ + _)
-
-		println(s"\n ####### Similarities after duplicate removal: ${noduplicates.count()} ###### \n\n")
+		val nodupcount = noduplicates.count
+		println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
+		println(s"\n ####### Duplicate percentage: ${1-(nodupcount/simcount)} ###### \n\n")
 
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
