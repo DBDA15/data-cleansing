@@ -16,9 +16,11 @@ case class SignatureKey(movie:Int, stars:Int)
 object Main extends App {
 
 	def determineSignature (user: (Int, Iterable[Rating]) ) : Array[(SignatureKey, Array[ Iterable[Rating] ] )] = {
+		val SIMTHRESHOLD = 0.9
 		val ratings = user._2
 		
-		val requiredSigLength = ratings.size - math.ceil(0.9*ratings.size) + 1 // |u|-ceil(t*|u|)+1
+		val requiredSigLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size) + 1 // |u|-ceil(t*|u|)+1
+
 		val result = new Array[(SignatureKey, Array[ Iterable[Rating] ] )] (requiredSigLength.toInt)
 		val ratingsArr = ratings.toArray.sortBy(_.movie)
 		for ( i<-0 to requiredSigLength.toInt-1 )  {
@@ -36,7 +38,7 @@ object Main extends App {
 	}
 
 	def compareCandidates(candidates: Array[ Iterable[Rating] ]): Array[(String, Long)] = {		
-		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
+		val SIMTHRESHOLD = 0.9
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
@@ -49,16 +51,8 @@ object Main extends App {
 				var user2 = candidates(n)
 
 				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
-				var sizesInRange = false
-				if(user1.size<user2.size) {
-					sizesInRange = user2.size*SIMTHRESHOLD <= user1.size
-				} else {
-					sizesInRange = user1.size*SIMTHRESHOLD <= user2.size
-				}
-
 				comparisonsRaw += 1
-				
-				if(sizesInRange) {
+				if(lengthFilter(user1.size, user2.size, SIMTHRESHOLD)) {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
 					if(simvalue >= SIMTHRESHOLD) {
@@ -68,6 +62,10 @@ object Main extends App {
 			}			
 		}
 		return Array(("similarities",numberOfSims), ("unpruned comparisons",comparisonsRaw), ("comps after length filter",comparisonsEffective))
+	}
+
+	def lengthFilter(size1: Int, size2: Int, threshold:Double): Boolean = {
+		return math.max(size1, size2)*threshold <= math.min(size1, size2)
 	}
 
 	def parseLine(line: String, movid:Int): Rating = {
