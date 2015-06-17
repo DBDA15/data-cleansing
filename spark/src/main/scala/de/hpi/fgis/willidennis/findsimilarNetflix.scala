@@ -77,6 +77,35 @@ object Main extends App {
 		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
+	def parseFiles(sc:SparkContext, TRAINING_PATH: String, numberOfFiles: Int, firstNLineOfFile: Int) : RDD[Rating] = {
+		var parsed = sc.parallelize(Array[Rating]())	// build empty RDD
+
+		val fileRDDs = new Array[org.apache.spark.rdd.RDD[Rating]](numberOfFiles/200)
+
+		/* split RDD every N files to avoid stackoverflow */
+		val splitRDDeveryNfiles = 200
+		for(i <- 1 to numberOfFiles) {
+		var thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
+
+		if(firstNLineOfFile> (-1)) {
+		thisDataset = sc.parallelize(thisDataset.take(firstNLineOfFile))
+	}
+
+		if(i%splitRDDeveryNfiles==0) {
+		fileRDDs((i/splitRDDeveryNfiles)-1) = parsed
+		parsed = thisDataset
+	}
+		else {
+		parsed = parsed ++ thisDataset
+	}
+	}
+
+		/* concat all temporary rdds */
+		for(myrdd <- fileRDDs) {
+			parsed = parsed ++ myrdd
+		}
+		return parsed
+	}
 
 	override def main(args: Array[String]) = {
 		val timeAtBeginning = System.currentTimeMillis
@@ -107,50 +136,12 @@ object Main extends App {
 		conf.set("spark.executor.memory", "4g")
 		val sc = new SparkContext(conf)
 
-		/* File input
-		*
-		*/
-		var parsed = sc.parallelize(Array[Rating]())	// build empty RDD
-
-		val fileRDDs = new Array[org.apache.spark.rdd.RDD[Rating]](numberOfFiles/200)
-
-		/* split RDD every N files to avoid stackoverflow */
-		val splitRDDeveryNfiles = 200
-		for(i <- 1 to numberOfFiles) {
-			var thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
-			
-			if(firstNLineOfFile> (-1)) {
-				thisDataset = sc.parallelize(thisDataset.take(firstNLineOfFile))
-			}
-
-			if(i%splitRDDeveryNfiles==0) {
-				fileRDDs((i/splitRDDeveryNfiles)-1) = parsed
-				parsed = thisDataset
-			}
-			else {
-				parsed = parsed ++ thisDataset
-			}	
-		}
-		
-		/* concat all temporary rdds */
-		for(myrdd <- fileRDDs) {
-			parsed = parsed ++ myrdd
-		}
-
-		/* group ratings by user */
-		val users = parsed.groupBy(_.user)
+		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile)
+		val users = ratings.groupBy(_.user)
 		/* TODO: users has userID as key and then repeated in tuple. unnecessary! */
 
-
-		/* make signature
-		*/
 		val signed = users.flatMap(determineSignature)
-
-		/* reduce
-		*/
-
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
-
 		val similarities = buckets.flatMap(compareCandidates)
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount} ###### \n\n")
@@ -162,9 +153,10 @@ object Main extends App {
 
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
-		
-		println(s"\n\n ####### Ratings: ${parsed.count()} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
+
+		println(s"\n\n ####### Ratings: ${ratings.count} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
 		//println(s"\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
+		//println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 		//println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 	}
 }
