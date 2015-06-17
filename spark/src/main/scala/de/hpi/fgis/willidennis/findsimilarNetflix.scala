@@ -145,7 +145,8 @@ object Main extends App {
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount} ###### \n\n")
 
-		val noduplicates = similarities.map(x => (x, 1)).reduceByKey(_ + _)
+		val noduplicates = similarities.distinct()
+/*		val noduplicates = similarities.map(x => (x, 1)).reduceByKey(_ + _)*/
 		val nodupcount = noduplicates.count
 		println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
 		println(s"\n ####### Duplicate percentage: ${1-(nodupcount/simcount)} ###### \n\n")
