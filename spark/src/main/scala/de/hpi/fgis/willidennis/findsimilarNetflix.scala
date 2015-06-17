@@ -136,13 +136,13 @@ object Main extends App {
 		conf.set("spark.executor.memory", "4g")
 		val sc = new SparkContext(conf)
 
-		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile)
+		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile).cache()
 		val users = ratings.groupBy(_.user)
 		/* TODO: users has userID as key and then repeated in tuple. unnecessary! */
 
 		val signed = users.flatMap(determineSignature)
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
-		val similarities = buckets.flatMap(compareCandidates)
+		val similarities = buckets.flatMap(compareCandidates).cache()
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount} ###### \n\n")
 
