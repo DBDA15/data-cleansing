@@ -38,7 +38,7 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[Rating] ]): ArrayBuffer[(Int, Int)] = {		
+	def compareCandidates(candidates: Array[ Iterable[Rating] ]): ArrayBuffer[(Int, Int)] = {
 		val SIMTHRESHOLD = 0.9
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
@@ -129,7 +129,7 @@ object Main extends App {
 
 		if(args.size > 3) {
 			NROFCORES = args(3).toInt
-		}		
+		}
 
 		var conf = new SparkConf()
 		conf.setAppName(Main.getClass.getName)
@@ -138,7 +138,6 @@ object Main extends App {
 
 		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile).cache()
 		val users = ratings.groupBy(_.user)
-		/* TODO: users has userID as key and then repeated in tuple. unnecessary! */
 
 		val signed = users.flatMap(determineSignature)
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
