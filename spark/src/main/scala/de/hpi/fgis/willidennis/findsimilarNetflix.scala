@@ -16,19 +16,32 @@ case class SignatureKey(movie:Int, stars:Int)
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[Rating]) ) : Array[(SignatureKey, Array[ Iterable[Rating] ] )] = {
+	def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int ) : Array[(String, Array[Iterable[Rating]])] = {
 		val SIMTHRESHOLD = 0.9
 		val ratings = user._2
-		
-		val requiredSigLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size) + 1 // |u|-ceil(t*|u|)+1
 
-		val result = new Array[(SignatureKey, Array[ Iterable[Rating] ] )] (requiredSigLength.toInt)
-		val ratingsArr = ratings.toArray.sortBy(_.movie)
-		for ( i<-0 to requiredSigLength.toInt-1 )  {
-			val rat = ratingsArr(i)
-			result(i) = (SignatureKey(rat.movie, rat.stars), Array(ratings))
+		val signatureLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
+
+		//val ratingsWithSignatures = new Array[(SignatureKey, Array[Iterable[Rating]])](signatureLength)
+		val sortedRatings = ratings.toArray.sortBy(_.movie)
+		val prefix = sortedRatings.slice(0, signatureLength).toList
+		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
+		val ratingsWithSignatures = new Array[(String, Array[Iterable[Rating]])] (signatures.length)
+		for(i <- 0 to signatures.length - 1) {
+			val longSignature = signatures(i).map((s:Rating) => SignatureKey(s.movie, s.stars))
+			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
+			ratingsWithSignatures(i) = ( (signatureString, Array(ratings)) )
 		}
-		return result
+/*		for ( i<-0 to signatureLength.toInt-1 )  {
+			val rat = sortedRatings(i)
+			ratingsWithSignatures(i) = (SignatureKey(rat.movie, rat.stars), Array(ratings))
+		}*/
+		return ratingsWithSignatures
+	}
+
+	def combinations[T](aList:List[T], n:Int) : Iterator[List[T]] = {
+		if(aList.length < n) return Iterator(aList) // aList.combinations(n) would be an empty List
+		return aList.combinations(n)
 	}
 
 	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
@@ -114,6 +127,7 @@ object Main extends App {
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
+		var SIGNATURE_SIZE = 1
 		var NROFCORES = 1
 
 		if(args.size > 0) {
@@ -128,7 +142,11 @@ object Main extends App {
 		}
 
 		if(args.size > 3) {
-			NROFCORES = args(3).toInt
+			SIGNATURE_SIZE = args(3).toInt
+		}
+
+		if(args.size > 4) {
+			NROFCORES = args(4).toInt
 		}
 
 		var conf = new SparkConf()
@@ -139,7 +157,7 @@ object Main extends App {
 		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile).cache()
 		val users = ratings.groupBy(_.user)
 
-		val signed = users.flatMap(determineSignature)
+		val signed = users.flatMap(x => determineSignature(x, SIGNATURE_SIZE))
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
 		val similarities = buckets.flatMap(compareCandidates).cache()
 		val simcount = similarities.count
@@ -149,7 +167,7 @@ object Main extends App {
 /*		val noduplicates = similarities.map(x => (x, 1)).reduceByKey(_ + _)*/
 		val nodupcount = noduplicates.count
 		println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
-		println(s"\n ####### Duplicate percentage: ${1-(nodupcount/simcount)} ###### \n\n")
+		println(s"\n ####### Duplicates: ${1-(nodupcount/simcount)}%###### \n\n")
 
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
