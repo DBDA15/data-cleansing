@@ -69,10 +69,10 @@ object Main extends App {
 					comparisonsEffective += 1
 					if(simvalue >= SIMTHRESHOLD) {
 						numberOfSims += 1
-						result.append((user1.head.user, user2.head.user))
+						result.append((math.min(user1.head.user, user2.head.user), math.max(user1.head.user, user2.head.user)))
 					}
 				}
-			}			
+			}
 		}
 		return result
 	}
