@@ -32,10 +32,6 @@ object Main extends App {
 			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
 			ratingsWithSignatures(i) = ( (signatureString, Array(ratings)) )
 		}
-/*		for ( i<-0 to signatureLength.toInt-1 )  {
-			val rat = sortedRatings(i)
-			ratingsWithSignatures(i) = (SignatureKey(rat.movie, rat.stars), Array(ratings))
-		}*/
 		return ratingsWithSignatures
 	}
 
@@ -164,7 +160,6 @@ object Main extends App {
 		println(s"\n ####### Similarities before duplicate removal: ${simcount} ###### \n\n")
 
 		val noduplicates = similarities.distinct()
-/*		val noduplicates = similarities.map(x => (x, 1)).reduceByKey(_ + _)*/
 		val nodupcount = noduplicates.count
 		println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
 		println(s"\n ####### Duplicates: ${1-(nodupcount/simcount)}%###### \n\n")
