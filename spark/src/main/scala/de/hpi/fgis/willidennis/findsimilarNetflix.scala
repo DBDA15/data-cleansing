@@ -162,20 +162,18 @@ object Main extends App {
 		val comparisonsAccum = sc.accumulator(0.toLong, "Number of comparisons made")
 
 		val similarities = buckets.flatMap(x => compareCandidates(x, comparisonsAccum))
+		//similarities.cache()
 		val simcount = similarities.count
-		println(s"\n ####### Similarities before duplicate removal: ${simcount} ###### \n\n")
+		println(s"\n ####### Similarities before duplicate removal: ${simcount}, took ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
 
-		val noduplicates = similarities.distinct()
-		val nodupcount = noduplicates.count
-		println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
-		println(s"\n ####### Duplicates: ${1-(nodupcount/simcount)}%###### \n\n")
+		//val noduplicates = similarities.distinct()
+		//val nodupcount = noduplicates.count
+		//println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
+		//println(s"\n ####### Duplicates: ${1-(nodupcount/simcount)}%###### \n\n")
 
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
-		//calcStatistics.saveAsTextFile(RESULTS_PATH)
 
-		println(s"\n\n ####### Ratings: ${ratings.count} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
+		println(s"\n ####### Ratings: ${ratings.count} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), total: ${(System.currentTimeMillis-timeAtBeginning)/1000}s using ${NROFCORES} cores ###### \n")
 		println(s"\n ####### Comparisons: ${comparisonsAccum} #######")
-		//println(s"\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
-		//println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 	}
 }
