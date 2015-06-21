@@ -10,6 +10,7 @@ import org.apache.log4j.Level
 
 import scala.collection.mutable.ArrayBuffer
 import Array._
+import org.apache.spark.Accumulator
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
@@ -47,7 +48,7 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[Rating] ]): ArrayBuffer[(Int, Int)] = {
+	def compareCandidates(candidates: Array[ Iterable[Rating] ], comparisonsAccum: Accumulator[Long]): ArrayBuffer[(Int, Int)] = {
 		val SIMTHRESHOLD = 0.9
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
@@ -66,6 +67,7 @@ object Main extends App {
 				comparisonsRaw += 1
 				if(lengthFilter(user1.size, user2.size, SIMTHRESHOLD)) {
 					val simvalue = calculateSimilarity(user1, user2)
+					
 					comparisonsEffective += 1
 					if(simvalue >= SIMTHRESHOLD) {
 						numberOfSims += 1
@@ -74,6 +76,7 @@ object Main extends App {
 				}
 			}
 		}
+		comparisonsAccum += comparisonsEffective
 		return result
 	}
 
@@ -150,12 +153,15 @@ object Main extends App {
 		conf.set("spark.executor.memory", "4g")
 		val sc = new SparkContext(conf)
 
-		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile).cache()
+		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile)
 		val users = ratings.groupBy(_.user)
 
 		val signed = users.flatMap(x => determineSignature(x, SIGNATURE_SIZE))
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
-		val similarities = buckets.flatMap(compareCandidates).cache()
+
+		val comparisonsAccum = sc.accumulator(0.toLong, "Number of comparisons made")
+
+		val similarities = buckets.flatMap(x => compareCandidates(x, comparisonsAccum))
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount} ###### \n\n")
 
@@ -168,8 +174,8 @@ object Main extends App {
 		//calcStatistics.saveAsTextFile(RESULTS_PATH)
 
 		println(s"\n\n ####### Ratings: ${ratings.count} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), ${(System.currentTimeMillis-timeAtBeginning)/1000}s ${NROFCORES} cores ###### \n")
+		println(s"\n ####### Comparisons: ${comparisonsAccum} #######")
 		//println(s"\n ####### Users-Signatures: ${signed.count()} ###### \n\n")
-		//println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 		//println(s"\n ####### Statistics: ${statistics(2)} | ${statistics(1)} | ${statistics(0)} ###### \n")
 	}
 }
