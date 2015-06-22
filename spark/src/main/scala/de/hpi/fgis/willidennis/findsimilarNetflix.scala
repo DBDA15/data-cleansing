@@ -48,29 +48,23 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates: Array[ Iterable[Rating] ], comparisonsAccum: Accumulator[Long]): ArrayBuffer[(Int, Int)] = {
-		val SIMTHRESHOLD = 0.9
-		var numberOfSims = 0.toLong
-		var comparisonsRaw = 0.toLong
-		var comparisonsEffective = 0.toLong
+	def compareCandidates(candidates:Array[ Iterable[Rating] ], comparisonsAccum:Accumulator[Long], SIM_THRESHOLD:Double = 0.9): ArrayBuffer[(Int, Int)] = {
+		var comparisonsRaw = 0L
+		var comparisonsEffective = 0L
 
 		val result = ArrayBuffer[(Int, Int)]()
 
 		for(i<-0 to (candidates.length-2)) {
-			var user1 = candidates(i)
+			val user1 = candidates(i)
 
 			/* compare with all elements that follow */
 			for(n<-(i+1) to (candidates.length-1)) {
-				var user2 = candidates(n)
-
-				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
+				val user2 = candidates(n)
 				comparisonsRaw += 1
-				if(lengthFilter(user1.size, user2.size, SIMTHRESHOLD)) {
+				if(lengthFilter(user1.size, user2.size, SIM_THRESHOLD)) {
 					val simvalue = calculateSimilarity(user1, user2)
-					
 					comparisonsEffective += 1
-					if(simvalue >= SIMTHRESHOLD) {
-						numberOfSims += 1
+					if(simvalue >= SIM_THRESHOLD) {
 						result.append((math.min(user1.head.user, user2.head.user), math.max(user1.head.user, user2.head.user)))
 					}
 				}
@@ -86,7 +80,7 @@ object Main extends App {
 
 	def parseLine(line: String, movid:Int): Rating = {
 		val splitted = line.split(",")
-		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
+		return Rating(splitted(0).toInt, movid, splitted(1).toInt)
 	}
 
 	def parseFiles(sc:SparkContext, TRAINING_PATH: String, numberOfFiles: Int, firstNLineOfFile: Int) : RDD[Rating] = {
@@ -126,8 +120,9 @@ object Main extends App {
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
-		var SIGNATURE_SIZE = 1
-		var NROFCORES = 1
+		var SIGNATURE_SIZE:Int = 1
+		var NROFCORES:Int = 1
+		var SIM_THRESHOLD = 0.9
 
 		if(args.size > 0) {
 			TRAINING_PATH = args(0)
@@ -148,6 +143,10 @@ object Main extends App {
 			NROFCORES = args(4).toInt
 		}
 
+		if(args.size > 5) {
+			SIM_THRESHOLD = args(5).toInt
+		}
+
 		var conf = new SparkConf()
 		conf.setAppName(Main.getClass.getName)
 		conf.set("spark.executor.memory", "4g")
@@ -159,9 +158,9 @@ object Main extends App {
 		val signed = users.flatMap(x => determineSignature(x, SIGNATURE_SIZE))
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
 
-		val comparisonsAccum = sc.accumulator(0.toLong, "Number of comparisons made")
+		val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
 
-		val similarities = buckets.flatMap(x => compareCandidates(x, comparisonsAccum))
+		val similarities = buckets.flatMap(x => compareCandidates(x, comparisonsAccum, SIM_THRESHOLD))
 		//similarities.cache()
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount}, took ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
