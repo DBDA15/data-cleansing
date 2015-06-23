@@ -11,14 +11,38 @@ case class UserRatings(user:Int, ratings:Iterable[Rating])
 
 object Main extends App {
 
-	def determineSignature (ratings: Iterator[Rating], out: Collector[(SignatureKey, Array[NumberOfRatingsPerUser]) ] ) {
+	def determineSignature1 (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int ) : Array[(String, Array[Iterable[Rating]])] = {
+		val SIMTHRESHOLD = 0.9
+		val ratings = user._2
+
+		val signatureLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
+
+		//val ratingsWithSignatures = new Array[(SignatureKey, Array[Iterable[Rating]])](signatureLength)
+		val sortedRatings = ratings.toArray.sortBy(_.movie)
+		val prefix = sortedRatings.slice(0, signatureLength).toList
+		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
+		val ratingsWithSignatures = new Array[(String, Array[Iterable[Rating]])] (signatures.length)
+		for(i <- 0 to signatures.length - 1) {
+			val longSignature = signatures(i).map((s:Rating) => SignatureKey(s.movie, s.stars))
+			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
+			ratingsWithSignatures(i) = ( (signatureString, Array(ratings)) )
+		}
+		return ratingsWithSignatures
+	}
+
+	def combinations[T](aList:List[T], n:Int) : Iterator[List[T]] = {
+		if(aList.length < n) return Iterator(aList) // aList.combinations(n) would be an empty List
+		return aList.combinations(n)
+	}
+
+/*	def determineSignature (ratings: Iterator[Rating], out: Collector[(String, Array[Array[Rating]]) ] ) {
 		val rsize = ratings.length
 		for ( rat <- ratings )  {
 			println("collecting!")
 			out.collect( (SignatureKey(rat.movie, rat.stars),
 						  Array(NumberOfRatingsPerUser(rat.user, rsize)) ) ) // Array only to allow concat in following step
 		}
-	}
+	}*/
 
 	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
 		val u1set = user1.map(x => (x.movie, x.stars)).toSet
@@ -27,9 +51,6 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	/*
-	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
-	*/
 	def generateCandidates(candidates: Array[(Int, Int)] ): Array[(Int,Int)] = {
 		val SIMTHRESHOLD = 0.9
 
@@ -62,10 +83,6 @@ object Main extends App {
 		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
-	/*
-	 	* 	 candidates: Array[ All Ratings of a User ])
-    *    out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
-    */
 	def compareCandidates(candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
 		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
 		var numberOfSims = 0.toLong
@@ -102,10 +119,24 @@ object Main extends App {
 			("comps after length filter", comparisonsEffective))
 	}
 
-	def groupAllUsersRatings(in: Iterator[Rating], out: Collector[(SignatureKey, Array[Rating])])  {
-			val allRatingsOfUser = in.toArray
-			allRatingsOfUser foreach((x: Rating) => out.collect(
-				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))
+	def groupAllUsersRatings(in: Iterator[Rating], out: Collector[(String, Array[Rating])])  {
+		val SIMTHRESHOLD = 0.9
+		val SIGNATURE_SIZE = 2
+		val allRatingsOfUser = in.toArray
+		val signatureLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
+
+		val sortedRatings = allRatingsOfUser.toArray.sortBy(_.movie)
+		val prefix = sortedRatings.slice(0, signatureLength).toList
+		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
+
+		for(sig <- signatures) {
+			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
+			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
+			out.collect( (signatureString, allRatingsOfUser))
+		}
+
+		/*allRatingsOfUser foreach((x: Rating) => out.collect(
+				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))*/
 	}
 
 	def parseFiles(env: ExecutionEnvironment, numberOfFiles: Int, TRAINING_PATH: String): DataSet[Rating]  = {
@@ -166,12 +197,12 @@ object Main extends App {
 		var mapped = parseFiles(env, numberOfFiles, TRAINING_PATH)
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(SignatureKey, Array[Rating])] = users.reduceGroup(groupAllUsersRatings _)
+		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings _)
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
 		val similar: DataSet[Array[(String, Long)]] = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (SignatureKey, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
+			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
 				val buckets = in.map(_._2).toArray
 				out.collect(compareCandidates(buckets))
 		}
