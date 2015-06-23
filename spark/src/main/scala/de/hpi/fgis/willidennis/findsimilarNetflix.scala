@@ -17,7 +17,7 @@ case class SignatureKey(movie:Int, stars:Int)
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int, SIM_THRESHOLD:Double) : Array[(String, Array[Iterable[Rating]])] = {
+	def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int, SIM_THRESHOLD:Double = 0.9) : Array[(String, Array[Iterable[Rating]])] = {
 		val ratings = user._2
 
 		val signatureLength = ratings.size - math.ceil(SIM_THRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
@@ -47,7 +47,7 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates:Array[ Iterable[Rating] ], comparisonsAccum:Accumulator[Long], SIM_THRESHOLD:Double): ArrayBuffer[(Int, Int)] = {
+	def compareCandidates(candidates:Array[ Iterable[Rating] ], comparisonsAccum:Accumulator[Long], simCounter:Accumulator[Long], SIM_THRESHOLD:Double = 0.9): ArrayBuffer[(Int, Int)] = {
 		var comparisonsRaw = 0L
 		var comparisonsEffective = 0L
 
@@ -154,7 +154,7 @@ object Main extends App {
 		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile)
 		val users = ratings.groupBy(_.user)
 
-		val signed = users.flatMap(x => determineSignature(x, SIGNATURE_SIZE, SIM_THRESHOLD))
+		val signed = users.flatMap(x => determineSignature(x, SIGNATURE_SIZE))
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
 
 		val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
