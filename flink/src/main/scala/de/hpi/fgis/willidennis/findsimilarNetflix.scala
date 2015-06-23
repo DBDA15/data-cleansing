@@ -7,10 +7,11 @@ import org.apache.flink.util.Collector
 
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
-									SIGNATURE_SIZE:Int = 2,
+									SIGNATURE_SIZE:Int = 1,
 									TRAINING_PATH:String = "netflixdata/training_set",
 									FILES:Int = 5,
-									LINES:Int = -1)
+									LINES:Int = -1,
+									STAT_FILE:String = "file:///tmp/flink-aggregated-stats")
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
@@ -63,8 +64,7 @@ object Main extends App {
 		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
-	def compareCandidates(candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
-		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
+	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
@@ -79,9 +79,9 @@ object Main extends App {
 				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
 				var sizesInRange = false
 				if(user1.size<user2.size) {
-					sizesInRange = user2.size*SIMTHRESHOLD <= user1.size
+					sizesInRange = user2.size*config.SIM_THRESHOLD <= user1.size
 				} else {
-					sizesInRange = user1.size*SIMTHRESHOLD <= user2.size
+					sizesInRange = user1.size*config.SIM_THRESHOLD <= user2.size
 				}
 
 				comparisonsRaw += 1
@@ -89,7 +89,7 @@ object Main extends App {
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
-					if(simvalue >= SIMTHRESHOLD) {
+					if(simvalue >= config.SIM_THRESHOLD) {
 						numberOfSims += 1
 					}
 				}
@@ -126,7 +126,7 @@ object Main extends App {
 	}
 
 	override def main(args: Array[String]) = {
-		val parser = new OptionParser[Config]("foo") {
+		val parser = new OptionParser[Config]("find similar") {
 			head("data.cleansing", "0.1")
 			opt[String]("TRAINING_PATH") action { (path, c) =>
 				c.copy(TRAINING_PATH = path)
@@ -134,15 +134,21 @@ object Main extends App {
 			opt[Int]("CORES") action { (n, c) =>
 				c.copy(CORES = n)
 			} text ("number of cores")
-			opt[Int]("FILES") action {(a, c) =>
+			opt[Int]("FILES") action { (a, c) =>
 				c.copy(FILES = a)
-			} text("number of files")
-			opt[Int]("LINES") action {(a, c) =>
+			} text ("number of files")
+			opt[Int]("LINES") action { (a, c) =>
 				c.copy(LINES = a)
-			} text("first number of lines of input file")
+			} text ("first number of lines of input file")
+			opt[Int]("SIGNATURE_SIZE") action { (s, c) =>
+				c.copy(SIGNATURE_SIZE = s)
+			} text ("sig size")
 			opt[Double]("SIM_THRESHOLD") action { (s, c) =>
 				c.copy(SIM_THRESHOLD = s)
 			} text ("jaccard similarity threshold")
+			opt[String]("STAT_FILE") action { (s, c) =>
+				c.copy(STAT_FILE = s)
+			} text ("file for stats printing")
 
 			help("help") text ("prints this usage text")
 		}
@@ -154,13 +160,13 @@ object Main extends App {
 		}
 	}
 
-	def outputStats(similar:DataSet[Array[(String, Long)]]) = {
+	def outputStats(config:Config, similar:DataSet[Array[(String, Long)]]) = {
 		val aggregatedStats = similar.reduce {
 			(x: Array[(String, Long)], y: Array[(String, Long)]) =>
 				Array( (x(0)._1, x(0)._2 + y(0)._2), (x(1)._1, x(1)._2 + y(1)._2), (x(2)._1, x(2)._2 + y(2)._2))
 		}
 		val printableAggregatedStats = aggregatedStats.map(_.toList)
-		printableAggregatedStats.writeAsText("file:///tmp/flink-aggregated-stats", writeMode=FileSystem.WriteMode.OVERWRITE)
+		printableAggregatedStats.writeAsText(config.STAT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 	}
 
 	def run(config: Config) {
@@ -178,10 +184,10 @@ object Main extends App {
 		val similar = signed.groupBy(SIGNATURE).reduceGroup {
 			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
 				val buckets = in.map(_._2).toArray
-				out.collect(compareCandidates(buckets))
+				out.collect(compareCandidates(config, buckets))
 		}
 		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
-		outputStats(similar)
+		outputStats(config, similar)
 		/*allRatingsOfUser foreach((x: Rating) => out.collect(
 				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))*/
 
