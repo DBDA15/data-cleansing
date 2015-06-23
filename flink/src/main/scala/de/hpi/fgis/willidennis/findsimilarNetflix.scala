@@ -7,6 +7,7 @@ import org.apache.flink.util.Collector
 
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
+									SIGNATURE_SIZE:Int = 2,
 									TRAINING_PATH:String = "netflixdata/training_set",
 									FILES:Int = 5,
 									LINES:Int = -1)
@@ -98,9 +99,7 @@ object Main extends App {
 			("comps after length filter", comparisonsEffective))
 	}
 
-	def groupAllUsersRatings(in: Iterator[Rating], out: Collector[(String, Array[Rating])])  {
-		val SIMTHRESHOLD = 0.9
-		val SIGNATURE_SIZE = 2
+	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, in: Iterator[Rating], out: Collector[(String, Array[Rating])])  {
 		val allRatingsOfUser = in.toArray
 		val signatureLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
 
@@ -113,9 +112,6 @@ object Main extends App {
 			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
 			out.collect( (signatureString, allRatingsOfUser))
 		}
-
-		/*allRatingsOfUser foreach((x: Rating) => out.collect(
-				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))*/
 	}
 
 	def parseFiles(env: ExecutionEnvironment, numberOfFiles: Int, TRAINING_PATH: String): DataSet[Rating]  = {
@@ -158,6 +154,15 @@ object Main extends App {
 		}
 	}
 
+	def outputStats(similar:DataSet[Array[(String, Long)]]) = {
+		val aggregatedStats = similar.reduce {
+			(x: Array[(String, Long)], y: Array[(String, Long)]) =>
+				Array( (x(0)._1, x(0)._2 + y(0)._2), (x(1)._1, x(1)._2 + y(1)._2), (x(2)._1, x(2)._2 + y(2)._2))
+		}
+		val printableAggregatedStats = aggregatedStats.map(_.toList)
+		printableAggregatedStats.writeAsText("file:///tmp/flink-aggregated-stats", writeMode=FileSystem.WriteMode.OVERWRITE)
+	}
+
 	def run(config: Config) {
 		val timeAtBeginning = System.currentTimeMillis
 
@@ -166,22 +171,20 @@ object Main extends App {
 		val mapped = parseFiles(env, config.FILES, config.TRAINING_PATH)
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings _)
+		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
-		val similar: DataSet[Array[(String, Long)]] = signed.groupBy(SIGNATURE).reduceGroup {
+		val similar = signed.groupBy(SIGNATURE).reduceGroup {
 			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
 				val buckets = in.map(_._2).toArray
 				out.collect(compareCandidates(buckets))
 		}
 		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
-		val aggregatedStats = similar.reduce {
-			(x: Array[(String, Long)], y: Array[(String, Long)]) =>
-				Array( (x(0)._1, x(0)._2 + y(0)._2), (x(1)._1, x(1)._2 + y(1)._2), (x(2)._1, x(2)._2 + y(2)._2))
-		}
-		val printableAggregatedStats = aggregatedStats.map(_.toList)
-		printableAggregatedStats.writeAsText("file:///tmp/flink-aggregated-stats", writeMode=FileSystem.WriteMode.OVERWRITE)
+		outputStats(similar)
+		/*allRatingsOfUser foreach((x: Rating) => out.collect(
+				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))*/
+
 		env.execute("data-cleansing")
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
 	}
