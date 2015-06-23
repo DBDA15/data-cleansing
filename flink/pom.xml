@@ -22,12 +22,22 @@
       <artifactId>scala-library</artifactId>
       <version>2.10.5</version>
     </dependency>
+    <dependency>
+      <groupId>com.github.scopt</groupId>
+      <artifactId>scopt_2.10</artifactId>
+      <version>3.2.0</version>
+    </dependency>
   </dependencies>
   <repositories>
     <repository>
       <id>scala-tools.org</id>
       <name>Scala-tools Maven2 Repository</name>
       <url>http://scala-tools.org/repo-releases</url>
+    </repository>
+    <repository>
+      <id>central.maven.org</id>
+      <name>Maven Central</name>
+      <url>http://central.maven.org/maven2</url>
     </repository>
   </repositories>
   <pluginRepositories>

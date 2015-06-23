@@ -2,7 +2,10 @@ package de.hpi.fgis.willidennis
 
 import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem
+import scopt.OptionParser
 import org.apache.flink.util.Collector
+
+case class Config(NROFCORES:Int = 1, SIM_THRESHOLD:Double = 0.9)
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
@@ -142,6 +145,23 @@ object Main extends App {
 
 		if(args.size > 3) {
 			NROFCORES = args(3).toInt
+		}
+
+		val parser = new OptionParser[Config]("scopt") {
+			head("data.cleansing", "0.1")
+			opt[Int]("NROFCORES") action { (n, c) =>
+				c.copy(NROFCORES = n)
+			} text ("number of cores")
+			opt[Double]("SIM_THRESHOLD") action { (s, c) =>
+				c.copy(SIM_THRESHOLD = s)
+			} text ("jaccard similarity threshold")
+			help("help") text ("prints this usage text")
+		}
+		// parser.parse returns Option[C]
+		parser.parse(args, Config()) map { config =>
+			// do stuff
+		} getOrElse {
+			// arguments are bad, usage message will have been displayed
 		}
 
 		val env = ExecutionEnvironment.getExecutionEnvironment
