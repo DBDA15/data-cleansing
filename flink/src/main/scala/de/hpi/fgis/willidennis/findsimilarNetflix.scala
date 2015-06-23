@@ -5,7 +5,11 @@ import org.apache.flink.core.fs.FileSystem
 import scopt.OptionParser
 import org.apache.flink.util.Collector
 
-case class Config(NROFCORES:Int = 1, SIM_THRESHOLD:Double = 0.9)
+case class Config(CORES:Int = 1,
+									SIM_THRESHOLD:Double = 0.9,
+									TRAINING_PATH:String = "netflixdata/training_set",
+									FILES:Int = 5,
+									LINES:Int = -1)
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
@@ -123,50 +127,40 @@ object Main extends App {
 	}
 
 	override def main(args: Array[String]) = {
-		val timeAtBeginning = System.currentTimeMillis
-		val SIMTHRESHOLD = 0.9
-
-		var firstNLineOfFile = -1
-		var numberOfFiles = 5
-		var numberOfMoviesForSig = 2
-		var TRAINING_PATH = "netflixdata/training_set"
-		var NROFCORES: Int = 4
-
-		if(args.size > 0) {
-			TRAINING_PATH = args(0)
-		}
-		if(args.size > 1) {
-			numberOfFiles = args(1).toInt
-		}
-
-		if(args.size > 2) {
-			firstNLineOfFile = args(2).toInt
-		}
-
-		if(args.size > 3) {
-			NROFCORES = args(3).toInt
-		}
-
-		val parser = new OptionParser[Config]("scopt") {
+		val parser = new OptionParser[Config]("foo") {
 			head("data.cleansing", "0.1")
-			opt[Int]("NROFCORES") action { (n, c) =>
-				c.copy(NROFCORES = n)
+			opt[String]("TRAINING_PATH") action { (path, c) =>
+				c.copy(TRAINING_PATH = path)
+			} text ("path of training data set")
+			opt[Int]("CORES") action { (n, c) =>
+				c.copy(CORES = n)
 			} text ("number of cores")
+			opt[Int]("FILES") action {(a, c) =>
+				c.copy(FILES = a)
+			} text("number of files")
+			opt[Int]("LINES") action {(a, c) =>
+				c.copy(LINES = a)
+			} text("first number of lines of input file")
 			opt[Double]("SIM_THRESHOLD") action { (s, c) =>
 				c.copy(SIM_THRESHOLD = s)
 			} text ("jaccard similarity threshold")
+
 			help("help") text ("prints this usage text")
 		}
-		// parser.parse returns Option[C]
-		parser.parse(args, Config()) map { config =>
-			// do stuff
-		} getOrElse {
-			// arguments are bad, usage message will have been displayed
+		//run with:
+		// $ flink run target/findSimilarNetflix-0.0.1-SNAPSHOT.jar --TRAINING_PATH netflixdata/training_set
+		parser.parse(args, new Config) match {
+			case Some(config) => run(config)
+			case None => // arguments are bad, error message will have been displayed
 		}
+	}
+
+	def run(config: Config) {
+		val timeAtBeginning = System.currentTimeMillis
 
 		val env = ExecutionEnvironment.getExecutionEnvironment
-		env.setParallelism(NROFCORES)
-		var mapped = parseFiles(env, numberOfFiles, TRAINING_PATH)
+		env.setParallelism(config.CORES)
+		val mapped = parseFiles(env, config.FILES, config.TRAINING_PATH)
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
 		val signed: DataSet[(SignatureKey, Array[Rating])] = users.reduceGroup(groupAllUsersRatings _)
