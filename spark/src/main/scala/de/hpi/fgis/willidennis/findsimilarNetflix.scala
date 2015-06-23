@@ -47,10 +47,8 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def compareCandidates(candidates:Array[ Iterable[Rating] ], comparisonsAccum:Accumulator[Long], SIM_THRESHOLD:Double = 0.9): ArrayBuffer[(Int, Int)] = {
+	def compareCandidates(candidates:Array[ Iterable[Rating] ], comparisonsAccum:Accumulator[Long], simCounter:Accumulator[Long], SIM_THRESHOLD:Double = 0.9): ArrayBuffer[(Int, Int)] = {
 		var comparisonsRaw = 0L
-		var comparisonsEffective = 0L
-
 		val result = ArrayBuffer[(Int, Int)]()
 
 		for(i<-0 to (candidates.length-2)) {
@@ -62,14 +60,14 @@ object Main extends App {
 				comparisonsRaw += 1
 				if(lengthFilter(user1.size, user2.size, SIM_THRESHOLD)) {
 					val simvalue = calculateSimilarity(user1, user2)
-					comparisonsEffective += 1
+					comparisonsAccum += 1
 					if(simvalue >= SIM_THRESHOLD) {
 						result.append((math.min(user1.head.user, user2.head.user), math.max(user1.head.user, user2.head.user)))
+						simCounter += 1
 					}
 				}
 			}
 		}
-		comparisonsAccum += comparisonsEffective
 		return result
 	}
 
@@ -143,7 +141,7 @@ object Main extends App {
 		}
 
 		if(args.size > 5) {
-			SIM_THRESHOLD = args(5).toInt
+			SIM_THRESHOLD = args(5).toDouble
 		}
 
 		var conf = new SparkConf()
@@ -158,8 +156,9 @@ object Main extends App {
 		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
 
 		val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
+		val similarityCounter = sc.accumulator(0L, "Number of similarities with possible duplicates")
 
-		val similarities = buckets.flatMap(x => compareCandidates(x, comparisonsAccum, SIM_THRESHOLD))
+		val similarities = buckets.flatMap(x => compareCandidates(x, comparisonsAccum, similarityCounter, SIM_THRESHOLD))
 		//similarities.cache()
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount}, took ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
@@ -173,5 +172,6 @@ object Main extends App {
 
 		println(s"\n ####### Ratings: ${ratings.count} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), total: ${(System.currentTimeMillis-timeAtBeginning)/1000}s using ${NROFCORES} cores ###### \n")
 		println(s"\n ####### Comparisons: ${comparisonsAccum} #######")
+		println(s"\n ####### Similarities: ${similarityCounter} #######")
 	}
 }
