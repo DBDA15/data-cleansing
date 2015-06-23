@@ -17,8 +17,7 @@ case class SignatureKey(movie:Int, stars:Int)
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int ) : Array[(String, Array[Iterable[Rating]])] = {
-		val SIMTHRESHOLD = 0.9
+	def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int, SIM_THRESHOLD:Double = 0.9) : Array[(String, Array[Iterable[Rating]])] = {
 		val ratings = user._2
 
 		val signatureLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
