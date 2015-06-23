@@ -18,38 +18,10 @@ case class UserRatings(user:Int, ratings:Iterable[Rating])
 
 object Main extends App {
 
-	def determineSignature1 (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int ) : Array[(String, Array[Iterable[Rating]])] = {
-		val SIMTHRESHOLD = 0.9
-		val ratings = user._2
-
-		val signatureLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
-
-		//val ratingsWithSignatures = new Array[(SignatureKey, Array[Iterable[Rating]])](signatureLength)
-		val sortedRatings = ratings.toArray.sortBy(_.movie)
-		val prefix = sortedRatings.slice(0, signatureLength).toList
-		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
-		val ratingsWithSignatures = new Array[(String, Array[Iterable[Rating]])] (signatures.length)
-		for(i <- 0 to signatures.length - 1) {
-			val longSignature = signatures(i).map((s:Rating) => SignatureKey(s.movie, s.stars))
-			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
-			ratingsWithSignatures(i) = ( (signatureString, Array(ratings)) )
-		}
-		return ratingsWithSignatures
-	}
-
 	def combinations[T](aList:List[T], n:Int) : Iterator[List[T]] = {
 		if(aList.length < n) return Iterator(aList) // aList.combinations(n) would be an empty List
 		return aList.combinations(n)
 	}
-
-/*	def determineSignature (ratings: Iterator[Rating], out: Collector[(String, Array[Array[Rating]]) ] ) {
-		val rsize = ratings.length
-		for ( rat <- ratings )  {
-			println("collecting!")
-			out.collect( (SignatureKey(rat.movie, rat.stars),
-						  Array(NumberOfRatingsPerUser(rat.user, rsize)) ) ) // Array only to allow concat in following step
-		}
-	}*/
 
 	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
 		val u1set = user1.map(x => (x.movie, x.stars)).toSet
@@ -188,23 +160,6 @@ object Main extends App {
 
 	def run(config: Config) {
 		val timeAtBeginning = System.currentTimeMillis
-
-		val parser = new OptionParser[Config]("scopt") {
-			head("data.cleansing", "0.1")
-			opt[Int]("NROFCORES") action { (n, c) =>
-				c.copy(NROFCORES = n)
-			} text ("number of cores")
-			opt[Double]("SIM_THRESHOLD") action { (s, c) =>
-				c.copy(SIM_THRESHOLD = s)
-			} text ("jaccard similarity threshold")
-			help("help") text ("prints this usage text")
-		}
-		// parser.parse returns Option[C]
-		parser.parse(args, Config()) map { config =>
-			// do stuff
-		} getOrElse {
-			// arguments are bad, usage message will have been displayed
-		}
 
 		val env = ExecutionEnvironment.getExecutionEnvironment
 		env.setParallelism(config.CORES)
