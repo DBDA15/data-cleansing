@@ -20,7 +20,7 @@ object Main extends App {
 	def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int, SIM_THRESHOLD:Double = 0.9) : Array[(String, Array[Iterable[Rating]])] = {
 		val ratings = user._2
 
-		val signatureLength = ratings.size - math.ceil(SIMTHRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
+		val signatureLength = ratings.size - math.ceil(SIM_THRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
 
 		//val ratingsWithSignatures = new Array[(SignatureKey, Array[Iterable[Rating]])](signatureLength)
 		val sortedRatings = ratings.toArray.sortBy(_.movie)
