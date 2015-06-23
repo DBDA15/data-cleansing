@@ -32,32 +32,6 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	def generateCandidates(candidates: Array[(Int, Int)] ): Array[(Int,Int)] = {
-		val SIMTHRESHOLD = 0.9
-
-		val candLength = candidates.length
-		val result = new Array[(Int, Int)]((0.5*(candLength-1)*(candLength)).toInt) // Gauß'sche Summenformel based on candLength-1
-		var index = 0
-		for(i<-0 to (candLength-2)) {
-			val user1 = candidates(i)
-			for(n<-(i+1) to (candLength-1)) {
-				val user2 = candidates(n)
-				// Length-filter
-				var sizesInRange = false
-				if(user1._2 < user2._2) {
-					sizesInRange = user2._2*SIMTHRESHOLD <= user1._2
-				} else {
-					sizesInRange = user1._2*SIMTHRESHOLD <= user2._2
-				}
-
-				if(sizesInRange) {
-					result(index) = (user1._1, user2._1)
-					index += 1
-				}
-			}
-		}
-		return result.filter(_ != null)
-	}
 
 	def parseLine(line: String, movid:Int):Rating = {
 		val splitted = line.split(",")
@@ -188,8 +162,6 @@ object Main extends App {
 		}
 		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
 		outputStats(config, similar)
-		/*allRatingsOfUser foreach((x: Rating) => out.collect(
-				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))*/
 
 		env.execute("data-cleansing")
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
