@@ -73,19 +73,9 @@ object Main extends App {
 			("comps after length filter", comparisonsEffective))
 	}
 
-	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, in: Iterator[Rating], out: Collector[(String, Array[Rating])])  {
-		val allRatingsOfUser = in.toArray
-		val signatureLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
-
-		val sortedRatings = allRatingsOfUser.toArray.sortBy(_.movie)
-		val prefix = sortedRatings.slice(0, signatureLength).toList
-		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
-
-		for(sig <- signatures) {
-			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
-			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
-			out.collect( (signatureString, allRatingsOfUser))
-		}
+	def groupAllUsersRatings(in: Iterator[Rating], out: Collector[(Int, List[Rating])])  {
+		val allRatingsOfUser = in.toList
+		out.collect((allRatingsOfUser.head.user, allRatingsOfUser))
 	}
 
 	def parseFiles(env: ExecutionEnvironment, numberOfFiles: Int, TRAINING_PATH: String): DataSet[Rating]  = {
@@ -150,18 +140,8 @@ object Main extends App {
 		env.setParallelism(config.CORES)
 		val mapped = parseFiles(env, config.FILES, config.TRAINING_PATH)
 
-		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
-		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
-
-		val SIGNATURE = 0
-		val similar = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
-				val buckets = in.map(_._2).toArray
-				out.collect(compareCandidates(config, buckets))
-		}
-		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
-		outputStats(config, similar)
+		val users = mapped.groupBy("user").reduceGroup(groupAllUsersRatings _)
+		users.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		env.execute("data-cleansing")
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
