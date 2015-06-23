@@ -2,7 +2,16 @@ package de.hpi.fgis.willidennis
 
 import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem
+import scopt.OptionParser
 import org.apache.flink.util.Collector
+
+case class Config(CORES:Int = 1,
+									SIM_THRESHOLD:Double = 0.9,
+									SIGNATURE_SIZE:Int = 1,
+									TRAINING_PATH:String = "netflixdata/training_set",
+									FILES:Int = 5,
+									LINES:Int = -1,
+									STAT_FILE:String = "file:///tmp/flink-aggregated-stats")
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
@@ -11,13 +20,9 @@ case class UserRatings(user:Int, ratings:Iterable[Rating])
 
 object Main extends App {
 
-	def determineSignature (ratings: Iterator[Rating], out: Collector[(SignatureKey, Array[NumberOfRatingsPerUser]) ] ) {
-		val rsize = ratings.length
-		for ( rat <- ratings )  {
-			println("collecting!")
-			out.collect( (SignatureKey(rat.movie, rat.stars),
-						  Array(NumberOfRatingsPerUser(rat.user, rsize)) ) ) // Array only to allow concat in following step
-		}
+	def combinations[T](aList:List[T], n:Int) : Iterator[List[T]] = {
+		if(aList.length < n) return Iterator(aList) // aList.combinations(n) would be an empty List
+		return aList.combinations(n)
 	}
 
 	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
@@ -27,47 +32,13 @@ object Main extends App {
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
-	/*
-	*	out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
-	*/
-	def generateCandidates(candidates: Array[(Int, Int)] ): Array[(Int,Int)] = {
-		val SIMTHRESHOLD = 0.9
-
-		val candLength = candidates.length
-		val result = new Array[(Int, Int)]((0.5*(candLength-1)*(candLength)).toInt) // Gauß'sche Summenformel based on candLength-1
-		var index = 0
-		for(i<-0 to (candLength-2)) {
-			val user1 = candidates(i)
-			for(n<-(i+1) to (candLength-1)) {
-				val user2 = candidates(n)
-				// Length-filter
-				var sizesInRange = false
-				if(user1._2 < user2._2) {
-					sizesInRange = user2._2*SIMTHRESHOLD <= user1._2
-				} else {
-					sizesInRange = user1._2*SIMTHRESHOLD <= user2._2
-				}
-
-				if(sizesInRange) {
-					result(index) = (user1._1, user2._1)
-					index += 1
-				}
-			}
-		}
-		return result.filter(_ != null)
-	}
 
 	def parseLine(line: String, movid:Int):Rating = {
 		val splitted = line.split(",")
 		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
 	}
 
-	/*
-	 	* 	 candidates: Array[ All Ratings of a User ])
-    *    out: (Int, Int) = (number of similarities found, number of comparisons, number of comparisons saved)
-    */
-	def compareCandidates(candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
-		val SIMTHRESHOLD = 0.9 /* TODO: where else can we set this!? */
+	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
@@ -82,9 +53,9 @@ object Main extends App {
 				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
 				var sizesInRange = false
 				if(user1.size<user2.size) {
-					sizesInRange = user2.size*SIMTHRESHOLD <= user1.size
+					sizesInRange = user2.size*config.SIM_THRESHOLD <= user1.size
 				} else {
-					sizesInRange = user1.size*SIMTHRESHOLD <= user2.size
+					sizesInRange = user1.size*config.SIM_THRESHOLD <= user2.size
 				}
 
 				comparisonsRaw += 1
@@ -92,7 +63,7 @@ object Main extends App {
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
-					if(simvalue >= SIMTHRESHOLD) {
+					if(simvalue >= config.SIM_THRESHOLD) {
 						numberOfSims += 1
 					}
 				}
@@ -102,10 +73,19 @@ object Main extends App {
 			("comps after length filter", comparisonsEffective))
 	}
 
-	def groupAllUsersRatings(in: Iterator[Rating], out: Collector[(SignatureKey, Array[Rating])])  {
-			val allRatingsOfUser = in.toArray
-			allRatingsOfUser foreach((x: Rating) => out.collect(
-				(SignatureKey(x.movie, x.stars), allRatingsOfUser) ))
+	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, in: Iterator[Rating], out: Collector[(String, Array[Rating])])  {
+		val allRatingsOfUser = in.toArray
+		val signatureLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
+
+		val sortedRatings = allRatingsOfUser.toArray.sortBy(_.movie)
+		val prefix = sortedRatings.slice(0, signatureLength).toList
+		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
+
+		for(sig <- signatures) {
+			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
+			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
+			out.collect( (signatureString, allRatingsOfUser))
+		}
 	}
 
 	def parseFiles(env: ExecutionEnvironment, numberOfFiles: Int, TRAINING_PATH: String): DataSet[Rating]  = {
@@ -120,51 +100,69 @@ object Main extends App {
 	}
 
 	override def main(args: Array[String]) = {
-		val timeAtBeginning = System.currentTimeMillis
-		val SIMTHRESHOLD = 0.9
+		val parser = new OptionParser[Config]("find similar") {
+			head("data.cleansing", "0.1")
+			opt[String]("TRAINING_PATH") action { (path, c) =>
+				c.copy(TRAINING_PATH = path)
+			} text ("path of training data set")
+			opt[Int]("CORES") action { (n, c) =>
+				c.copy(CORES = n)
+			} text ("number of cores")
+			opt[Int]("FILES") action { (a, c) =>
+				c.copy(FILES = a)
+			} text ("number of files")
+			opt[Int]("LINES") action { (a, c) =>
+				c.copy(LINES = a)
+			} text ("first number of lines of input file")
+			opt[Int]("SIGNATURE_SIZE") action { (s, c) =>
+				c.copy(SIGNATURE_SIZE = s)
+			} text ("sig size")
+			opt[Double]("SIM_THRESHOLD") action { (s, c) =>
+				c.copy(SIM_THRESHOLD = s)
+			} text ("jaccard similarity threshold")
+			opt[String]("STAT_FILE") action { (s, c) =>
+				c.copy(STAT_FILE = s)
+			} text ("file for stats printing")
 
-		var firstNLineOfFile = -1
-		var numberOfFiles = 5
-		var numberOfMoviesForSig = 2
-		var TRAINING_PATH = "netflixdata/training_set"
-		var NROFCORES: Int = 4
-
-		if(args.size > 0) {
-			TRAINING_PATH = args(0)
+			help("help") text ("prints this usage text")
 		}
-		if(args.size > 1) {
-			numberOfFiles = args(1).toInt
+		//run with:
+		// $ flink run target/findSimilarNetflix-0.0.1-SNAPSHOT.jar --TRAINING_PATH netflixdata/training_set
+		parser.parse(args, new Config) match {
+			case Some(config) => run(config)
+			case None => // arguments are bad, error message will have been displayed
 		}
+	}
 
-		if(args.size > 2) {
-			firstNLineOfFile = args(2).toInt
-		}
-
-		if(args.size > 3) {
-			NROFCORES = args(3).toInt
-		}
-
-		val env = ExecutionEnvironment.getExecutionEnvironment
-		env.setParallelism(NROFCORES)
-		var mapped = parseFiles(env, numberOfFiles, TRAINING_PATH)
-
-		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(SignatureKey, Array[Rating])] = users.reduceGroup(groupAllUsersRatings _)
-		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
-
-		val SIGNATURE = 0
-		val similar: DataSet[Array[(String, Long)]] = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (SignatureKey, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
-				val buckets = in.map(_._2).toArray
-				out.collect(compareCandidates(buckets))
-		}
-		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
+	def outputStats(config:Config, similar:DataSet[Array[(String, Long)]]) = {
 		val aggregatedStats = similar.reduce {
 			(x: Array[(String, Long)], y: Array[(String, Long)]) =>
 				Array( (x(0)._1, x(0)._2 + y(0)._2), (x(1)._1, x(1)._2 + y(1)._2), (x(2)._1, x(2)._2 + y(2)._2))
 		}
 		val printableAggregatedStats = aggregatedStats.map(_.toList)
-		printableAggregatedStats.writeAsText("file:///tmp/flink-aggregated-stats", writeMode=FileSystem.WriteMode.OVERWRITE)
+		printableAggregatedStats.writeAsText(config.STAT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
+	}
+
+	def run(config: Config) {
+		val timeAtBeginning = System.currentTimeMillis
+
+		val env = ExecutionEnvironment.getExecutionEnvironment
+		env.setParallelism(config.CORES)
+		val mapped = parseFiles(env, config.FILES, config.TRAINING_PATH)
+
+		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
+		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
+		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
+
+		val SIGNATURE = 0
+		val similar = signed.groupBy(SIGNATURE).reduceGroup {
+			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
+				val buckets = in.map(_._2).toArray
+				out.collect(compareCandidates(config, buckets))
+		}
+		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
+		outputStats(config, similar)
+
 		env.execute("data-cleansing")
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
 	}
