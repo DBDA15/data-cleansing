@@ -88,11 +88,13 @@ object Main extends App {
 		}
 	}
 
-	def parseFiles(env: ExecutionEnvironment, numberOfFiles: Int, TRAINING_PATH: String): DataSet[Rating]  = {
+	def parseFiles(config:Config, env: ExecutionEnvironment): DataSet[Rating] = {
 		var mapped: DataSet[Rating] = env.fromCollection(Array[Rating]())
 
-		for(i <- 1 to numberOfFiles) {
-			val text = env.readTextFile(TRAINING_PATH + "/mv_" + "%07d".format(i) + ".txt");
+		for(i <- 1 to config.FILES) {
+			var text = env.readTextFile(config.TRAINING_PATH + "/mv_" + "%07d".format(i) + ".txt")
+			if(config.LINES > 0)
+				text = text.first(config.LINES)
 			val filtered = text.filter(line => ! line.contains(":"))
 			mapped = mapped.union(filtered.map(line => parseLine(line,i)))
 		}
@@ -148,7 +150,7 @@ object Main extends App {
 
 		val env = ExecutionEnvironment.getExecutionEnvironment
 		env.setParallelism(config.CORES)
-		val mapped = parseFiles(env, config.FILES, config.TRAINING_PATH)
+		val mapped = parseFiles(config, env)
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
 		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
