@@ -11,7 +11,8 @@ case class Config(CORES:Int = 1,
 									TRAINING_PATH:String = "netflixdata/training_set",
 									FILES:Int = 5,
 									LINES:Int = -1,
-									STAT_FILE:String = "file:///tmp/flink-aggregated-stats")
+									STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
+									EXECUTION_NAME:String = "data-cleansing")
 
 case class Rating(user:Int, movie:Int, stars:Int)
 case class SignatureKey(movie:Int, stars:Int)
@@ -125,6 +126,9 @@ object Main extends App {
 			opt[String]("STAT_FILE") action { (s, c) =>
 				c.copy(STAT_FILE = s)
 			} text ("file for stats printing")
+			opt[String]("EXECUTION_NAME") action { (s, c) =>
+				c.copy(EXECUTION_NAME = s)
+			} text ("Name of this execution")
 
 			help("help") text ("prints this usage text")
 		}
@@ -167,7 +171,7 @@ object Main extends App {
 		// TODO write JSON to file and analyze
 		println(env.getExecutionPlan())
 
-		env.execute("data-cleansing")
+		env.execute(config.EXECUTION_NAME)
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
 	}
 }
