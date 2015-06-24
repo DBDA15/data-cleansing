@@ -164,6 +164,8 @@ object Main extends App {
 		}
 		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
 		outputStats(config, similar)
+		// TODO write JSON to file and analyze
+		println(env.getExecutionPlan())
 
 		env.execute("data-cleansing")
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
