@@ -1,5 +1,5 @@
 targetDict = {}
-MAXFILES = 100
+MAXFILES = 17770 # 17770 is max in dataset
 PRINTREADEVERY = 100
 PRINTWRITEEVERY = 100000
 
@@ -12,10 +12,10 @@ while currentFileIndex <= MAXFILES:
 	mFile = open(dir + filename ,'r')
 	movid = 'TOBEFOUND'
 	for line in mFile:
-		if(':' in line): movid = line.split(':')[0]
+		if(':' in line): movid = int(line.split(':')[0])
 		else:
-			userid = line.split(',')[0]
-			rating = line.split(',')[1]
+			userid = int(line.split(',')[0])
+			rating = int(line.split(',')[1])
 			ratingTuple = (userid,movid,rating)
 			if not userid in targetDict:
 				targetDict[userid] = [ratingTuple]
