@@ -162,12 +162,14 @@ object Main extends App {
 
 		val SIGNATURE = 0
 		val similar = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
-				val buckets = in.map(_._2).toArray
-				out.collect(compareCandidates(config, buckets))
+			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ (String, Int) ])  =>
+				val all = in.toList
+				val signature = all(0)._1
+				val bucket = all.map(_._2).toArray
+				out.collect((signature, bucket.length))
 		}
-		//similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
-		outputStats(config, similar)
+		similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
+		//outputStats(config, similar)
 		//println(env.getExecutionPlan())
 
 		env.execute(config.EXECUTION_NAME)
