@@ -8,7 +8,7 @@ import org.apache.flink.util.Collector
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
 									SIGNATURE_SIZE:Int = 1,
-									TRAINING_PATH:String = "netflixdata/training_set",
+									TRAINING_PATH:String = "netflixdata/training_set/by_user/",
 									FILES:Int = 5,
 									LINES:Int = -1,
 									STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
@@ -34,9 +34,9 @@ object Main extends App {
 	}
 
 
-	def parseLine(line: String, movid:Int):Rating = {
+	def parseLine(line: String):Rating = {
 		val splitted = line.split(",")
-		return Rating(splitted(0).toInt, movid, splitted(1).toInt) // (userid, movid, rating)
+		return Rating(splitted(0).toInt, splitted(1).toInt, splitted(2).toInt)
 	}
 
 	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
@@ -92,12 +92,10 @@ object Main extends App {
 	def parseFiles(config:Config, env: ExecutionEnvironment): DataSet[Rating] = {
 		var mapped: DataSet[Rating] = env.fromCollection(Array[Rating]())
 
-		for(i <- 1 to config.FILES) {
-			var text = env.readTextFile(config.TRAINING_PATH + "/mv_" + "%07d".format(i) + ".txt")
-			if(config.LINES > 0)
-				text = text.first(config.LINES)
-			val filtered = text.filter(line => ! line.contains(":"))
-			mapped = mapped.union(filtered.map(line => parseLine(line,i)))
+		for(i <- 0 to config.FILES - 1) {
+			var text = env.readTextFile(config.TRAINING_PATH + s"${i}.csv")
+
+			mapped = mapped.union(text.map(line => parseLine(line)))
 		}
 		return mapped
 	}
