@@ -15,13 +15,13 @@ def write_ratings(targetDict):
 	lastFileName = ''
 	csvfile = None
 	fileopen = 0
-	
+
 	for key in sorted(keylist, key=lambda x: x % NUMBER_OF_FILES_OUT):
 		filename = key % NUMBER_OF_FILES_OUT
 		if(filename != lastFileName):
 			lastFileName = filename
 			if(csvfile is not None): csvfile.close()
-			csvfile = open("%sby_user/%i.csv" % (directory, filename), "a")
+			csvfile = open("%sby_user/%i.csv" % (directory, filename), "a", newline='')
 			writer = csv.writer(csvfile)
 			fileopen += 1
 		ratings = targetDict[key]
@@ -29,8 +29,8 @@ def write_ratings(targetDict):
 			writer.writerow(r)
 	csvfile.close()
 	print("written: " + str(fileopen))
-	
-	
+
+
 
 
 for currentFileIndex in range(1, MAXFILES):
