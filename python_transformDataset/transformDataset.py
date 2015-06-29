@@ -1,24 +1,36 @@
 import csv
 targetDict = {}
 MAXFILES = 17770  # 17770 is max in dataset
-PRINTREADEVERY = 100
-NUMBER_OF_FILES = 1000
+WRITE_TO_FILE_EVERY = 500
+NUMBER_OF_FILES_OUT = 1000
 
 directory = '../netflixdata/training_set/'
 
-print('reading...')
 
+print('reading...')
 
 def write_ratings(targetDict):
 	print('writing...')
-	for key in targetDict:
-		filename = key % NUMBER_OF_FILES
-		with open("%sby_user/%i.csv" % (directory, filename), "a") as csvfile:
+	keylist = list(targetDict.keys())
+	lastFileName = ''
+	csvfile = None
+	fileopen = 0
+
+	for key in sorted(keylist, key=lambda x: x % NUMBER_OF_FILES_OUT):
+		filename = key % NUMBER_OF_FILES_OUT
+		if(filename != lastFileName):
+			lastFileName = filename
+			if(csvfile is not None): csvfile.close()
+			csvfile = open("%sby_user/%i.csv" % (directory, filename), "a", newline='')
 			writer = csv.writer(csvfile)
-			ratings = targetDict[key]
-			for r in ratings:
-				writer.writerow(r)
-	print("written")
+			fileopen += 1
+		ratings = targetDict[key]
+		for r in ratings:
+			writer.writerow(r)
+	csvfile.close()
+	print("written: " + str(fileopen))
+
+
 
 
 for currentFileIndex in range(1, MAXFILES):
@@ -36,13 +48,11 @@ for currentFileIndex in range(1, MAXFILES):
 				else:
 					targetDict[userid].append(ratingTuple)
 
-	if(currentFileIndex % PRINTREADEVERY == 0):
+	if(currentFileIndex % WRITE_TO_FILE_EVERY == 0):
 		percentageString = '{0:03f}'.format(currentFileIndex/float(MAXFILES)*100)
 		print(str(currentFileIndex) + ' done (' + percentageString + ' %)')
 		write_ratings(targetDict)
 		targetDict.clear()
 
-
-
-
+write_ratings(targetDict)
 print('finished')
