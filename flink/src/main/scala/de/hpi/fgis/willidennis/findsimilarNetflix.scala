@@ -84,7 +84,7 @@ object Main extends App {
 
 		for(sig <- signatures) {
 			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
-			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
+			val signatureString = longSignature.map(x => x.movie.toString + '-' +x.stars.toString).mkString(";")
 			out.collect( (signatureString, allRatingsOfUser))
 		}
 	}
