@@ -74,8 +74,9 @@ object Main extends App {
 			("comps after length filter", comparisonsEffective))
 	}
 
-	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, in: Iterator[Rating], out: Collector[(String, Array[Rating])])  {
+	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, in: Iterator[Rating], out: Collector[(String, Int)])  {
 		val allRatingsOfUser = in.toArray
+		val userID = allRatingsOfUser(0).user
 		val signatureLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
 
 		val sortedRatings = allRatingsOfUser.toArray.sortBy(_.movie)
@@ -85,7 +86,7 @@ object Main extends App {
 		for(sig <- signatures) {
 			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
 			val signatureString = longSignature.map(x => x.movie.toString + '-' +x.stars.toString).mkString(";")
-			out.collect( (signatureString, allRatingsOfUser))
+			out.collect( (signatureString, userID))
 		}
 	}
 
@@ -155,21 +156,19 @@ object Main extends App {
 		val mapped = parseFiles(config, env)
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
+		val signed: DataSet[(String, Int)] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
 		val similar = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ (String, Int) ])  =>
+			(in:  Iterator[ (String, Int) ], out: Collector[ (String, Int) ])  =>
 				val all = in.toList
 				val signature = all(0)._1
-				val bucket = all.map(_._2).toArray
-				out.collect((signature, bucket.length))
+				out.collect((signature, all.length))
 		}
-		similar.writeAsText("file:///tmp/flink-similar", writeMode=FileSystem.WriteMode.OVERWRITE)
-		//outputStats(config, similar)
+		similar.writeAsText("file:///tmp/flink-similar-without-ratings", writeMode=FileSystem.WriteMode.OVERWRITE)
 		//println(env.getExecutionPlan())
-
+		//outputStats(config, similar)
 		env.execute(config.EXECUTION_NAME)
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
 	}
