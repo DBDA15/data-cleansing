@@ -13,7 +13,6 @@ case class Config(CORES:Int = 1,
 									LINES:Int = -1,
 									STAT_FILE:String = "file:///tmp/flink-ratings-per-user",
 									OUTPUT_FILE:String = "file:///tmp/flink-output",
-									OUTPUT_FILE:String = "file:///tmp/flink-output",
 									EXECUTION_NAME:String = "data-cleansing")
 
 case class Rating(user:Int, movie:Int, stars:Int)
