@@ -11,7 +11,7 @@ case class Config(CORES:Int = 1,
 									TRAINING_PATH:String = "netflixdata/training_set/by_user/",
 									FILES:Int = 5,
 									LINES:Int = -1,
-									STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
+									STAT_FILE:String = "file:///tmp/flink-ratingsdata-per-user",
 									EXECUTION_NAME:String = "data-cleansing")
 
 case class Rating(user:Int, movie:Int, stars:Int)
@@ -26,9 +26,8 @@ object Main extends App {
 		return Rating(splitted(0).toInt, splitted(1).toInt, splitted(2).toInt)
 	}
 
-	def groupByUser(in: Iterator[Rating], out: Collector[(Int, Int)])  {
-		val allRatingsOfUser = in.toArray
-		out.collect(allRatingsOfUser(0).user, allRatingsOfUser.size)
+	def groupByUser(in: Iterator[Rating], out: Collector[List[Rating]])  {
+		out.collect(in.toList)
 	}
 
 	def parseFiles(config:Config, env: ExecutionEnvironment): DataSet[Rating] = {
@@ -88,11 +87,9 @@ object Main extends App {
 		env.setParallelism(config.CORES)
 		val mapped = parseFiles(config, env)
 
-		val users: DataSet[(Int, Int)] = mapped.groupBy("user").reduceGroup(groupByUser(_, _))
-		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
-
+		val users: DataSet[List[Rating]] = mapped.groupBy("user").reduceGroup(groupByUser(_, _))
 		
-		users.writeAsText("file:///tmp/flink-ratings-per-user", writeMode=FileSystem.WriteMode.OVERWRITE)
+		users.writeAsText(config.STAT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		env.execute(config.EXECUTION_NAME)
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
