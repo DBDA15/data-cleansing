@@ -11,7 +11,7 @@ case class Config(CORES:Int = 1,
 									TRAINING_PATH:String = "netflixdata/training_set/by_user/",
 									FILES:Int = 5,
 									LINES:Int = -1,
-									STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
+									STAT_FILE:String = "file:///tmp/flink-ratings-per-user",
 									EXECUTION_NAME:String = "data-cleansing")
 
 case class Rating(user:Int, movie:Int, stars:Int)
@@ -92,7 +92,7 @@ object Main extends App {
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		
-		users.writeAsText("file:///tmp/flink-ratings-per-user", writeMode=FileSystem.WriteMode.OVERWRITE)
+		users.writeAsCsv(config.STAT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		env.execute(config.EXECUTION_NAME)
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
