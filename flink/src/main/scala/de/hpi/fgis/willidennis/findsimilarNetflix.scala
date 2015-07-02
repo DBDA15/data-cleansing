@@ -174,10 +174,11 @@ object Main extends App {
 				out.collect(statisticsEntry)
 		}
 
-		val ratsPerMovieList: Array[Int] = numberOfRatingsPerMovie.collect.sortBy(_._2).map(x => x._1).toArray // Sort by number of ratings (._2)
+		val ratsPerMovie = numberOfRatingsPerMovie.collect
+		val sortedMovieList: Array[Int] = ratsPerMovie.sortBy(_._2).map(x => x._1).toArray // Sort by number of ratings (._2), keep only movie id
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, ratsPerMovieList, _, _))
+		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, sortedMovieList, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
