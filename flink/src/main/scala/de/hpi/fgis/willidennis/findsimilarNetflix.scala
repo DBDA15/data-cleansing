@@ -4,6 +4,7 @@ import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem
 import scopt.OptionParser
 import org.apache.flink.util.Collector
+import scala.collection.mutable.ArrayBuffer
 
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
@@ -32,18 +33,27 @@ object Main extends App {
 		return Rating(splitted(0).toInt, splitted(1).toInt, splitted(2).toInt)
 	}
 
-	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, in: Iterator[Rating], out: Collector[(String, Int)])  {
+	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, ratsPerMovieList: List[Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
 		val allRatingsOfUser = in.toArray
+		val prefixLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
 		val userID = allRatingsOfUser(0).user
-		val signatureLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
 
-		val sortedRatings = allRatingsOfUser.toArray.sortBy(_.movie)
-		val prefix = sortedRatings.slice(0, signatureLength).toList
-		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
+		// find out the n (signatureLength) rated movies with the least ratings		
+		var i = 0
+		val prefix = ArrayBuffer[Rating]()
+		// loop through ratsPerMovieList, which is a list of all movieIDs sorted by the number of their ratings, ascending
+		while(prefix.size < prefixLength && i < ratsPerMovieList.size) {
+			val thisMovieId = ratsPerMovieList(i)
+			val ratingFound = allRatingsOfUser.find(x => x.movie == thisMovieId)
+			if(ratingFound.isDefined) prefix.append(ratingFound.get)
+			i = i+1
+		}
+
+		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
 
 		for(sig <- signatures) {
 			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
-			val signatureString = longSignature.map(x => x.movie.toString + '-' +x.stars.toString).mkString(";")
+			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
 			out.collect( (signatureString, userID))
 		}
 	}
@@ -108,8 +118,20 @@ object Main extends App {
 		env.setParallelism(config.CORES)
 		val mapped = parseFiles(config, env)
 
+		val numberOfRatingsPerMovie = mapped.groupBy("movie").reduceGroup {
+			(in:  Iterator[ Rating ], out: Collector[ (Int, Int) ])  =>
+				val ratingsList = in.toList
+				val statisticsEntry = (ratingsList(0).movie, ratingsList.size)
+				out.collect(statisticsEntry)
+		}
+		val ratsPerMovie = numberOfRatingsPerMovie.collect
+		
+		val sortedMovieList: List[Int] = ratsPerMovie.sortBy(_._2).map(x => x._1).toList // Sort by number of ratings (._2), keep only movie id
+		print("### size of movie list: " + sortedMovieList.size)
+
+
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(String, Int)] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
+		val signed: DataSet[(String, Int)] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, sortedMovieList, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
@@ -120,7 +142,7 @@ object Main extends App {
 				out.collect((signature, all.length))
 		}
 
-		bucketSizes.writeAsText(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
+		bucketSizes.filter(_._2 > 1).writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 		//println(env.getExecutionPlan())
 		env.execute(config.EXECUTION_NAME)
 		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
