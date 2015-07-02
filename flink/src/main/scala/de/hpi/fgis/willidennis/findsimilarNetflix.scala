@@ -12,6 +12,7 @@ case class Config(CORES:Int = 1,
 									FILES:Int = 5,
 									LINES:Int = -1,
 									STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
+									OUTPUT_FILE:String = "file:///tmp/flink-output",
 									EXECUTION_NAME:String = "data-cleansing")
 
 case class Rating(user:Int, movie:Int, stars:Int)
@@ -125,6 +126,9 @@ object Main extends App {
 			opt[String]("STAT_FILE") action { (s, c) =>
 				c.copy(STAT_FILE = s)
 			} text ("file for stats printing")
+			opt[String]("OUTPUT_FILE") action { (s, c) =>
+				c.copy(OUTPUT_FILE = s)
+			} text ("file for stats printing")
 			opt[String]("EXECUTION_NAME") action { (s, c) =>
 				c.copy(EXECUTION_NAME = s)
 			} text ("Name of this execution")
@@ -166,7 +170,7 @@ object Main extends App {
 				val signature = all(0)._1
 				out.collect((signature, all.length))
 		}
-		similar.writeAsText("file:///tmp/flink-similar-without-ratings", writeMode=FileSystem.WriteMode.OVERWRITE)
+		similar.writeAsText(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 		//println(env.getExecutionPlan())
 		//outputStats(config, similar)
 		env.execute(config.EXECUTION_NAME)
