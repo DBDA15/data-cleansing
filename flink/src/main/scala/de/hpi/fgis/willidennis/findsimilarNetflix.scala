@@ -5,8 +5,6 @@ import org.apache.flink.core.fs.FileSystem
 import org.apache.flink.util.Collector
 import scopt.OptionParser
 
-import scala.collection.mutable.ArrayBuffer
-
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
 									SIGNATURE_SIZE:Int = 1,
@@ -42,11 +40,10 @@ object Main extends App {
 		return Rating(splitted(0).toInt, splitted(1).toInt, splitted(2).toInt)
 	}
 
-	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ]): ArrayBuffer[(Int, Int)] = {
+	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ], out: Collector[(Int, Int)])= {
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
-		val similarUsers = new ArrayBuffer[(Int, Int)]()
 		for(i<-0 to (candidatesArray.length-2)) {
 			var user1 = candidatesArray(i)
 
@@ -68,13 +65,12 @@ object Main extends App {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
 					if(simvalue >= config.SIM_THRESHOLD) {
-						similarUsers.append((user1.head.user, user2.head.user))
+						out.collect((user1.head.user, user2.head.user))
 						numberOfSims += 1
 					}
 				}
 			}
 		}
-		return similarUsers
 	}
 
 	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
@@ -204,10 +200,7 @@ object Main extends App {
 		val similar = candidatesWithRatings.groupBy(SIGNATURE).reduceGroup {
 			(in:  Iterator[(String, Array[Rating])], out: Collector[ (Int, Int) ])  =>
 				val bucket = in.map(_._2).toArray
-				for(similarPair <- compareCandidates(config, bucket)) {
-
-					out.collect(similarPair)
-			}
+				compareCandidates(config, bucket, out)
 		}
 
 		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
