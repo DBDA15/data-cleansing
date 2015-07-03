@@ -5,6 +5,7 @@ import org.apache.flink.core.fs.FileSystem
 import scopt.OptionParser
 import org.apache.flink.util.Collector
 
+import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
 case class Config(CORES:Int = 1,
@@ -42,10 +43,11 @@ object Main extends App {
 		return Rating(splitted(0).toInt, splitted(1).toInt, splitted(2).toInt)
 	}
 
-	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ]): Array[(String, Long)] = {
+	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ], out: Collector[(Int, Int)]) = {
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
+		val similarUsers = new ArrayBuffer[(Int, Int)]()
 		
 		for(i<-0 to (candidatesArray.length-2)) {
 			var user1 = candidatesArray(i)
@@ -68,13 +70,12 @@ object Main extends App {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
 					if(simvalue >= config.SIM_THRESHOLD) {
+						out.collect((user1.head.user, user2.head.user))
 						numberOfSims += 1
 					}
 				}
 			}
 		}
-		return Array(	("similarities", numberOfSims), ("unpruned comparisons", comparisonsRaw),
-			("comps after length filter", comparisonsEffective))
 	}
 
 	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
@@ -174,9 +175,9 @@ object Main extends App {
 		val movieMap = numberOfRatingsPerMovie.collect.map(x => x._1 -> x._2).toMap
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val userData: DataSet[(Int, List[Rating])] = users.reduceGroup {
-			(in:  Iterator[Rating], out: Collector[ (Int, List[Rating]) ])  =>
-				val allRatings = in.toList
+		val userData: DataSet[(Int, Array[Rating])] = users.reduceGroup {
+			(in:  Iterator[Rating], out: Collector[ (Int, Array[Rating]) ])  =>
+				val allRatings = in.toArray
 				out.collect((allRatings.head.user, allRatings))
 		}
 
@@ -193,10 +194,17 @@ object Main extends App {
 					}
 				}
 		}
-		
-		
+		val BUCKET_USER_ID = 1
+		val USER_DATA_USER_ID = 0
+		val candidatesWithRatings = cleanedFlatBuckets.join(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x=>(x._1._1, x._2._2))
+		val similar = candidatesWithRatings.groupBy(SIGNATURE).reduceGroup {
+					// here we could collect ArrayBuffer[(Int, Int)] to gather stats about similarities per bucket
+			(in:  Iterator[(String, Array[Rating])], out: Collector[ (Int, Int) ])  =>
+				val bucket = in.map(_._2).toArray
+				compareCandidates(config, bucket, out)
+		}
 
-		userData.writeAsText(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
+		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 		//println(env.getExecutionPlan())
 		//outputStats(config, similar)
 		env.execute(config.EXECUTION_NAME)
