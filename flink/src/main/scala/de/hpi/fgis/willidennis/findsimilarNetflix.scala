@@ -5,6 +5,8 @@ import org.apache.flink.core.fs.FileSystem
 import scopt.OptionParser
 import org.apache.flink.util.Collector
 
+import scala.util.Random
+
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
 									SIGNATURE_SIZE:Int = 1,
@@ -172,16 +174,29 @@ object Main extends App {
 		val movieMap = numberOfRatingsPerMovie.collect.map(x => x._1 -> x._2).toMap
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
+		val userData: DataSet[(Int, List[Rating])] = users.reduceGroup {
+			(in:  Iterator[Rating], out: Collector[ (Int, List[Rating]) ])  =>
+				val allRatings = in.toList
+				out.collect((allRatings.head.user, allRatings))
+		}
+
+		val signed: DataSet[(String, Int)] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieMap, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
-		val similar = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[ (String, Array[Rating]) ], out: Collector[ Array[(String, Long)] ])  =>
-				val buckets = in.map(_._2).toArray
-				out.collect(compareCandidates(config, buckets))
+		val cleanedFlatBuckets: DataSet[(String, Int)] = signed.groupBy(SIGNATURE).reduceGroup {
+			(in:  Iterator[(String,Int)], out: Collector[ (String, Int) ])  =>
+				val signedUserList = in.toList
+				if(signedUserList.size > 1) {
+					for (oneUser <- signedUserList) {
+						out.collect((oneUser._1, oneUser._2))
+					}
+				}
 		}
-		similar.writeAsText(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
+		
+		
+
+		userData.writeAsText(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 		//println(env.getExecutionPlan())
 		//outputStats(config, similar)
 		env.execute(config.EXECUTION_NAME)
