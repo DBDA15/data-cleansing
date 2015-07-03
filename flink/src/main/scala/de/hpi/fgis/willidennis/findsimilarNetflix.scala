@@ -2,11 +2,10 @@ package de.hpi.fgis.willidennis
 
 import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem
-import scopt.OptionParser
 import org.apache.flink.util.Collector
+import scopt.OptionParser
 
 import scala.collection.mutable.ArrayBuffer
-import scala.util.Random
 
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
@@ -43,12 +42,11 @@ object Main extends App {
 		return Rating(splitted(0).toInt, splitted(1).toInt, splitted(2).toInt)
 	}
 
-	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ], out: Collector[(Int, Int)]) = {
+	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ]): ArrayBuffer[(Int, Int)] = {
 		var numberOfSims = 0.toLong
 		var comparisonsRaw = 0.toLong
 		var comparisonsEffective = 0.toLong
 		val similarUsers = new ArrayBuffer[(Int, Int)]()
-		
 		for(i<-0 to (candidatesArray.length-2)) {
 			var user1 = candidatesArray(i)
 
@@ -70,12 +68,13 @@ object Main extends App {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
 					if(simvalue >= config.SIM_THRESHOLD) {
-						out.collect((user1.head.user, user2.head.user))
+						similarUsers.append((user1.head.user, user2.head.user))
 						numberOfSims += 1
 					}
 				}
 			}
 		}
+		return similarUsers
 	}
 
 	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
@@ -86,6 +85,7 @@ object Main extends App {
 		// find out the n (signatureLength) rated movies with the least ratings
 
 		val sortedRatings = allRatingsOfUser.sortBy(rating => movieMap.get(rating.movie).get)
+		//val sortedRatings = allRatingsOfUser.sortBy(_.movie)
 		val prefix = sortedRatings.slice(0, prefixLength).toList
 
 		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
@@ -158,6 +158,10 @@ object Main extends App {
 		printableAggregatedStats.writeAsText(config.STAT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 	}
 
+	def hasPairsInBucket(bucket: List[(String,Int)]): Boolean = {
+		bucket.size > 1
+	}
+
 	def run(config: Config) {
 		val timeAtBeginning = System.currentTimeMillis
 
@@ -187,9 +191,9 @@ object Main extends App {
 		val SIGNATURE = 0
 		val cleanedFlatBuckets: DataSet[(String, Int)] = signed.groupBy(SIGNATURE).reduceGroup {
 			(in:  Iterator[(String,Int)], out: Collector[ (String, Int) ])  =>
-				val signedUserList = in.toList
-				if(signedUserList.size > 1) {
-					for (oneUser <- signedUserList) {
+				val userIdBucket = in.toList
+				if(hasPairsInBucket(userIdBucket)) {
+					for (oneUser <- userIdBucket) {
 						out.collect((oneUser._1, oneUser._2))
 					}
 				}
@@ -198,10 +202,12 @@ object Main extends App {
 		val USER_DATA_USER_ID = 0
 		val candidatesWithRatings = cleanedFlatBuckets.join(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x=>(x._1._1, x._2._2))
 		val similar = candidatesWithRatings.groupBy(SIGNATURE).reduceGroup {
-					// here we could collect ArrayBuffer[(Int, Int)] to gather stats about similarities per bucket
 			(in:  Iterator[(String, Array[Rating])], out: Collector[ (Int, Int) ])  =>
 				val bucket = in.map(_._2).toArray
-				compareCandidates(config, bucket, out)
+				for(similarPair <- compareCandidates(config, bucket)) {
+
+					out.collect(similarPair)
+			}
 		}
 
 		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
