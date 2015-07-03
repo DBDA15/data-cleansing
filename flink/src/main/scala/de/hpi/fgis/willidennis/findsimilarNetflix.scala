@@ -4,7 +4,6 @@ import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem
 import scopt.OptionParser
 import org.apache.flink.util.Collector
-import scala.collection.mutable.ArrayBuffer
 
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
@@ -76,26 +75,22 @@ object Main extends App {
 			("comps after length filter", comparisonsEffective))
 	}
 
-	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, ratsPerMovieList: Array[Int], in: Iterator[Rating], out: Collector[(String, Array[Rating])])  {
+	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
 		val allRatingsOfUser = in.toArray
 		val prefixLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
+		val userID = allRatingsOfUser(0).user
 
-		// find out the n (signatureLength) rated movies with the least ratings		
-		var i = 0
-		val prefix = ArrayBuffer[Rating]()
-		// loop through ratsPerMovieList, which is a list of all movieIDs sorted by the number of their ratings, ascending
-		while(prefix.size < prefixLength && i < allRatingsOfUser.size) {
-			val thisMovieId = ratsPerMovieList(i)
-			val ratingFound = allRatingsOfUser.find(x => x.movie == thisMovieId)
-			if(ratingFound.isDefined) prefix.append(ratingFound.get)
-		}
+		// find out the n (signatureLength) rated movies with the least ratings
+
+		val sortedRatings = allRatingsOfUser.sortBy(rating => movieMap.get(rating.movie).get)
+		val prefix = sortedRatings.slice(0, prefixLength).toList
 
 		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
 
 		for(sig <- signatures) {
 			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
-			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
-			out.collect( (signatureString, allRatingsOfUser))
+			val signatureString = longSignature.map(x => x.movie.toString + '-' +x.stars.toString).mkString(";")
+			out.collect( (signatureString, userID))
 		}
 	}
 
@@ -174,11 +169,10 @@ object Main extends App {
 				out.collect(statisticsEntry)
 		}
 
-		val ratsPerMovie = numberOfRatingsPerMovie.collect
-		val sortedMovieList: Array[Int] = ratsPerMovie.sortBy(_._2).map(x => x._1).toArray // Sort by number of ratings (._2), keep only movie id
+		val movieMap = numberOfRatingsPerMovie.collect.map(x => x._1 -> x._2).toMap
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, sortedMovieList, _, _))
+		val signed: DataSet[(String, Array[Rating])] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
