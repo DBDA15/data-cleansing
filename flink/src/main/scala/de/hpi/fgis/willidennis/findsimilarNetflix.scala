@@ -54,7 +54,6 @@ object Main extends App {
 				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
 				val sizesInRange = config.SIM_THRESHOLD * math.max(user1.size, user2.size) <= math.min(user1.size, user2.size)
 				comparisonsRaw += 1
-
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
@@ -73,7 +72,6 @@ object Main extends App {
 		val userID = allRatingsOfUser(0).user
 
 		// find out the n (signatureLength) rated movies with the least ratings
-
 		val sortedRatings = allRatingsOfUser.sortBy(rating => movieMap.get(rating.movie).get)
 		//val sortedRatings = allRatingsOfUser.sortBy(_.movie)
 		val prefix = sortedRatings.slice(0, prefixLength).toList
@@ -182,8 +180,8 @@ object Main extends App {
 			(in:  Iterator[(String,Int)], out: Collector[ (String, Int) ])  =>
 				val userIdBucket = in.toList
 				if(hasPairsInBucket(userIdBucket)) {
-					for (oneUser <- userIdBucket) {
-						out.collect((oneUser._1, oneUser._2))
+					for (aUser<- userIdBucket) {
+						out.collect((aUser._1, aUser._2))
 					}
 				}
 		}
