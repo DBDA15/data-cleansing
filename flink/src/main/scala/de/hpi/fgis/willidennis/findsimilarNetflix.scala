@@ -67,7 +67,7 @@ object Main extends App {
 		}
 	}
 
-	def groupAllUsersRatings(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
+	def createSignature(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
 		val allRatingsOfUser = in.toArray
 		val prefixLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
 		val userID = allRatingsOfUser(0).user
@@ -175,7 +175,7 @@ object Main extends App {
 				out.collect((allRatings.head.user, allRatings))
 		}
 
-		val signed: DataSet[(String, Int)] = users.reduceGroup(groupAllUsersRatings(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieMap, _, _))
+		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieMap, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val SIGNATURE = 0
