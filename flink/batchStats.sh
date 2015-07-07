@@ -1,9 +1,8 @@
-pathToBinFlink="../../flink-0.9.0/bin/flink"
+pathToBinFlink="/opt/flink/flink-0.9.0/bin/flink"
 pathToJars="target"
-MY_TRAINING_PATH="../netflixdata/training_set/by_user"
-#do not write to tmp!
-LOG_DIR="/tmp/mylogs"
-OUTPUT_DIR="/tmp/flinkout"
+MY_TRAINING_PATH="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set/by_user/"
+LOG_DIR="out/mylogs"
+OUTPUT_DIR="out"
 
 for files in 10 100 17770
 do
