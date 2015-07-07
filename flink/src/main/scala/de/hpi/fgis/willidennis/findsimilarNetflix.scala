@@ -161,12 +161,11 @@ object Main extends App {
 
 		val numberOfRatingsPerMovie = mapped.groupBy("movie").reduceGroup {
 			(in:  Iterator[ Rating ], out: Collector[ (Int, Int) ])  =>
-				val ratingsList = in.toList
-				val statisticsEntry = (ratingsList(0).movie, ratingsList.size)
-				out.collect(statisticsEntry)
+				val movieID = in.next.movie
+				val numberOfRatings = in.size + 1
+				out.collect(movieID -> numberOfRatings)
 		}
-
-		val movieMap = numberOfRatingsPerMovie.collect.map(x => x._1 -> x._2).toMap
+		val movieMap = numberOfRatingsPerMovie.collect.toMap
 
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
 		val userData: DataSet[(Int, Array[Rating])] = users.reduceGroup {
