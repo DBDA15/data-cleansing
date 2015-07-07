@@ -95,6 +95,15 @@ object Main extends App {
 		return mapped
 	}
 
+	def collectBucketSize(dataSet: DataSet[(String, Int)] ): DataSet[(String, Int)] = {
+		val SIGNATURE = 0
+		dataSet.groupBy(SIGNATURE).reduceGroup {
+			(candidates: Iterator[(String, Int)], out: Collector[(String, Int)]) =>
+				val signature = candidates.next._1
+				val candidatesInBucket = candidates.size + 1 		// already fetched first element
+				out.collect((signature, candidatesInBucket))
+		}
+	}
 
 	def collectMovieStats(dataSet: DataSet[Rating]): Map[Int, Int] = {
 		val numberOfRatingsPerMovie = dataSet.groupBy("movie").reduceGroup {
@@ -212,10 +221,12 @@ object Main extends App {
 		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieStats, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
+		val bucketSizes = collectBucketSize(signed)
+		bucketSizes.writeAsCsv(config.STAT_FILE, writeMode = FileSystem.WriteMode.OVERWRITE)
 
 		val cleanFlatBuckets = cleanAndFlattenBuckets(signed)
 		val candidatesWithRatings = joinCandidatesWithRatings(cleanFlatBuckets, userData)
-		
+
 		val similar = similaritiesInBuckets(candidatesWithRatings, config)
 
 		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
