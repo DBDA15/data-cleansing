@@ -101,7 +101,8 @@ object Main extends App {
 			(candidates: Iterator[(String, Int)], out: Collector[(String, Int)]) =>
 				val signature = candidates.next._1
 				val candidatesInBucket = candidates.size + 1 		// already fetched first element
-				out.collect((signature, candidatesInBucket))
+				if(candidatesInBucket > 1)
+					out.collect((signature, candidatesInBucket))
 		}
 	}
 
