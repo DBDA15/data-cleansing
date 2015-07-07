@@ -234,6 +234,7 @@ object Main extends App {
 		//println(env.getExecutionPlan())
 		//outputStats(config, similar)
 		env.execute(config.EXECUTION_NAME)
-		println(s"time: ${System.currentTimeMillis - timeAtBeginning}")
+		//System.err.println(s"#### signatures: ${signed.count}")
+		System.err.println(s"#### time: ${System.currentTimeMillis - timeAtBeginning}")
 	}
 }
