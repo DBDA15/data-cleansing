@@ -8,6 +8,7 @@ for files in 10 #10 100 1000
 do
 	for sigSize in 1 2
 	do
+		echo "----------"
 		echo "create Signatures s$sigSize f$files start:" $(date +"%T")
 		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
 		$pathToJars/findSimilarNetflix-377eaf-createSignatures.jar \
@@ -16,6 +17,7 @@ do
 		--CORES 20
 		> "$LOG_DIR/log-createSigs-s$sigSizef$files"
 
+		echo "----------"
 		echo "collect bucketsizes s$sigSize f$files start:" $(date +"%T")
 		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
 		$pathToJars/findSimilarNetflix-377eaf-collectBucketSizes.jar \
@@ -26,6 +28,7 @@ do
 		--CORES 20
 		> "$LOG_DIR/log-collectBucketSizes-s$sigSize""f$files"
 
+		echo "----------"
 		echo "collect similars s$sigSize f$files start:" $(date +"%T")
 		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
 		$pathToJars/findSimilarNetflix-377eaf-findSimilars.jar \
