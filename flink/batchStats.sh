@@ -4,7 +4,7 @@ MY_TRAINING_PATH="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set
 LOG_DIR="out/mylogs"
 OUTPUT_DIR="out"
 
-for files in 10 100 1000
+for files in 10 #10 100 1000
 do
 	for sigSize in 1 2
 	do
