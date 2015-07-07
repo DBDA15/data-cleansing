@@ -95,6 +95,55 @@ object Main extends App {
 		return mapped
 	}
 
+
+	def collectMovieStats(dataSet: DataSet[Rating]): Map[Int, Int] = {
+		val numberOfRatingsPerMovie = dataSet.groupBy("movie").reduceGroup {
+			(in:  Iterator[ Rating ], out: Collector[ (Int, Int) ])  =>
+				val movieID = in.next.movie
+				val numberOfRatings = in.size + 1
+				out.collect(movieID -> numberOfRatings)
+		}
+		numberOfRatingsPerMovie.collect.toMap
+	}
+
+	def getUserData(users: GroupedDataSet[Rating]): DataSet[(Int, Array[Rating])] = {
+		users.reduceGroup {
+			(in:  Iterator[Rating], out: Collector[ (Int, Array[Rating]) ])  =>
+				val allRatings = in.toArray
+				out.collect((allRatings.head.user, allRatings))
+		}
+	}
+
+	def cleanAndFlattenBuckets(dataSet: DataSet[(String, Int)]): DataSet[(String, Int)] = {
+		val SIGNATURE = 0
+		dataSet.groupBy(SIGNATURE).reduceGroup {
+			(in:  Iterator[(String,Int)], out: Collector[ (String, Int) ]) =>
+				val userIdBucket = in.toList
+				if(hasPairsInBucket(userIdBucket)) {
+					for (aUser<- userIdBucket) {
+						out.collect((aUser._1, aUser._2))
+					}
+				}
+		}
+	}
+
+	def joinCandidatesWithRatings(candidateBuckets: DataSet[(String, Int)],
+																userData: DataSet[(Int, Array[Rating])]): DataSet[(String, Array[Rating])] = {
+		val BUCKET_USER_ID = 1
+		val USER_DATA_USER_ID = 0
+		candidateBuckets.joinWithHuge(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x => (x._1._1, x._2._2))
+	}
+
+	def similaritiesInBuckets(candidates:DataSet[(String, Array[Rating])], config: Config): DataSet[(Int, Int)] = {
+		val SIGNATURE = 0
+		val similar = candidates.groupBy(SIGNATURE).reduceGroup {
+			(in:  Iterator[(String, Array[Rating])], out: Collector[ (Int, Int) ])  =>
+				val bucket = in.map(_._2).toArray
+				compareCandidates(config, bucket, out)
+		}
+		return similar
+	}
+
 	override def main(args: Array[String]) = {
 		val parser = new OptionParser[Config]("find similar") {
 			head("data.cleansing", "0.1")
@@ -156,42 +205,18 @@ object Main extends App {
 		env.setParallelism(config.CORES)
 		val mapped = parseFiles(config, env)
 
-		val numberOfRatingsPerMovie = mapped.groupBy("movie").reduceGroup {
-			(in:  Iterator[ Rating ], out: Collector[ (Int, Int) ])  =>
-				val movieID = in.next.movie
-				val numberOfRatings = in.size + 1
-				out.collect(movieID -> numberOfRatings)
-		}
-		val movieMap = numberOfRatingsPerMovie.collect.toMap
-
+		val movieStats = collectMovieStats(mapped)
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val userData: DataSet[(Int, Array[Rating])] = users.reduceGroup {
-			(in:  Iterator[Rating], out: Collector[ (Int, Array[Rating]) ])  =>
-				val allRatings = in.toArray
-				out.collect((allRatings.head.user, allRatings))
-		}
+		val userData = getUserData(users)
 
-		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieMap, _, _))
+		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieStats, _, _))
 		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
-		val SIGNATURE = 0
-		val cleanedFlatBuckets: DataSet[(String, Int)] = signed.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[(String,Int)], out: Collector[ (String, Int) ])  =>
-				val userIdBucket = in.toList
-				if(hasPairsInBucket(userIdBucket)) {
-					for (aUser<- userIdBucket) {
-						out.collect((aUser._1, aUser._2))
-					}
-				}
-		}
-		val BUCKET_USER_ID = 1
-		val USER_DATA_USER_ID = 0
-		val candidatesWithRatings = cleanedFlatBuckets.joinWithHuge(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x=>(x._1._1, x._2._2))
-		val similar = candidatesWithRatings.groupBy(SIGNATURE).reduceGroup {
-			(in:  Iterator[(String, Array[Rating])], out: Collector[ (Int, Int) ])  =>
-				val bucket = in.map(_._2).toArray
-				compareCandidates(config, bucket, out)
-		}
+
+		val cleanFlatBuckets = cleanAndFlattenBuckets(signed)
+		val candidatesWithRatings = joinCandidatesWithRatings(cleanFlatBuckets, userData)
+		
+		val similar = similaritiesInBuckets(candidatesWithRatings, config)
 
 		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 		//println(env.getExecutionPlan())
