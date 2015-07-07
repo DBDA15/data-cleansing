@@ -4,10 +4,11 @@ MY_TRAINING_PATH="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set
 LOG_DIR="out/mylogs"
 OUTPUT_DIR="out"
 
-for files in 10 #10 100 1000
+for sigSize in 1 2
 do
-	for sigSize in 1 2
+	for files in 10 100 1000
 	do
+
 		echo "create Signatures s$sigSize f$files start:" $(date +"%T")
 		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
 		$pathToJars/findSimilarNetflix-377eaf-createSignatures.jar \
