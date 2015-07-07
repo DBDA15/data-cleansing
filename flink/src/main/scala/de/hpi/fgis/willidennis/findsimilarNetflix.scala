@@ -52,13 +52,7 @@ object Main extends App {
 				var user2 = candidatesArray(n)
 
 				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
-				var sizesInRange = false
-				if(user1.size<user2.size) {
-					sizesInRange = user2.size*config.SIM_THRESHOLD <= user1.size
-				} else {
-					sizesInRange = user1.size*config.SIM_THRESHOLD <= user2.size
-				}
-
+				val sizesInRange = config.SIM_THRESHOLD * math.max(user1.size, user2.size) <= math.min(user1.size, user2.size)
 				comparisonsRaw += 1
 
 				if(sizesInRange) {
