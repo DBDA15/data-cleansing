@@ -217,14 +217,13 @@ object Main extends App {
 
 		val movieStats = collectMovieStats(mapped)
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
-		val userData = getUserData(users)
+		//val userData = getUserData(users)
 
 		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieStats, _, _))
-		//signed.writeAsCsv("file:///tmp/flink-user", writeMode=FileSystem.WriteMode.OVERWRITE)
 
 		val bucketSizes = collectBucketSize(signed)
 		bucketSizes.writeAsCsv(config.STAT_FILE, writeMode = FileSystem.WriteMode.OVERWRITE)
-
+/*
 		val cleanFlatBuckets = cleanAndFlattenBuckets(signed)
 		val candidatesWithRatings = joinCandidatesWithRatings(cleanFlatBuckets, userData)
 
@@ -233,6 +232,7 @@ object Main extends App {
 		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
 		//println(env.getExecutionPlan())
 		//outputStats(config, similar)
+*/
 		env.execute(config.EXECUTION_NAME)
 		//System.err.println(s"#### signatures: ${signed.count}")
 		System.err.println(s"#### time: ${System.currentTimeMillis - timeAtBeginning}")
