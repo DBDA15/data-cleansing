@@ -11,7 +11,7 @@ do
 		echo "create Signatures s$sigSize f$files start:" $(date +"%T")
 		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
 		$pathToJars/findSimilarNetflix-377eaf-createSignatures.jar \
-		--TRAINING_PATH $MY_TRAINING_PATH/$files/ \
+		--TRAINING_PATH $MY_TRAINING_PATH$files/ \
 		--SIGNATURE_SIZE $sigSize --FILES 1 \
 		--CORES 20
 		> "$LOG_DIR/log-createSigs-s$sigSizef$files"
@@ -19,7 +19,7 @@ do
 		echo "collect bucketsizes s$sigSize f$files start:" $(date +"%T")
 		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
 		$pathToJars/findSimilarNetflix-377eaf-collectBucketSizes.jar \
-		--TRAINING_PATH $MY_TRAINING_PATH/$files/ \
+		--TRAINING_PATH $MY_TRAINING_PATH$files/ \
 		--SIGNATURE_SIZE $sigSize --FILES 1 \
 		--STAT_FILE "$OUTPUT_DIR/bucketSizes-s$sigSize""f$files" \
 		--EXECUTION_NAME "data-cleansing-bucketSizes-s($sigSize)f$files" \
@@ -29,7 +29,7 @@ do
 		echo "collect similars s$sigSize f$files start:" $(date +"%T")
 		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
 		$pathToJars/findSimilarNetflix-377eaf-findSimilars.jar \
-		--TRAINING_PATH $MY_TRAINING_PATH/$files/ \
+		--TRAINING_PATH $MY_TRAINING_PATH$files/ \
 		--SIGNATURE_SIZE $sigSize --FILES 1 \
 		--OUTPUT_FILE "$OUTPUT_DIR/similars-s$sigSize""f$files" \
 		--EXECUTION_NAME "data-cleansing-findSimilars-s($sigSize)f$files" \
