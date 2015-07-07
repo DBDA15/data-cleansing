@@ -189,7 +189,7 @@ object Main extends App {
 		}
 		val BUCKET_USER_ID = 1
 		val USER_DATA_USER_ID = 0
-		val candidatesWithRatings = cleanedFlatBuckets.join(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x=>(x._1._1, x._2._2))
+		val candidatesWithRatings = cleanedFlatBuckets.joinWithHuge(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x=>(x._1._1, x._2._2))
 		val similar = candidatesWithRatings.groupBy(SIGNATURE).reduceGroup {
 			(in:  Iterator[(String, Array[Rating])], out: Collector[ (Int, Int) ])  =>
 				val bucket = in.map(_._2).toArray
