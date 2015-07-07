@@ -15,8 +15,8 @@ case class Config(CORES:Int = 1,
 									OUTPUT_FILE:String = "file:///tmp/flink-output",
 									EXECUTION_NAME:String = "data-cleansing")
 
-case class Rating(user:Int, movie:Int, stars:Int)
-case class SignatureKey(movie:Int, stars:Int)
+case class Rating(user:Int, movie:Int)
+case class SignatureKey(movie:Int)
 case class NumberOfRatingsPerUser(user:Int, number:Int)
 case class UserRatings(user:Int, ratings:Iterable[Rating])
 
@@ -28,8 +28,8 @@ object Main extends App {
 	}
 
 	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
-		val u1set = user1.map(x => (x.movie, x.stars)).toSet
-		val u2set = user2.map(x => (x.movie, x.stars)).toSet
+		val u1set = user1.map(x => x.movie).toSet
+		val u2set = user2.map(x => x.movie).toSet
 
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
@@ -37,7 +37,7 @@ object Main extends App {
 
 	def parseLine(line: String):Rating = {
 		val splitted = line.split(",")
-		return Rating(splitted(0).toInt, splitted(1).toInt, splitted(2).toInt)
+		return Rating(splitted(0).toInt, splitted(1).toInt)
 	}
 
 	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ], out: Collector[(Int, Int)])= {
@@ -79,8 +79,7 @@ object Main extends App {
 		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
 
 		for(sig <- signatures) {
-			val longSignature = sig.map((s:Rating) => SignatureKey(s.movie, s.stars))
-			val signatureString = longSignature.map(x => x.movie.toString + '-' +x.stars.toString).mkString(";")
+			val signatureString = sig.map((x:Rating) => x.movie.toString).mkString(";")
 			out.collect( (signatureString, userID))
 		}
 	}

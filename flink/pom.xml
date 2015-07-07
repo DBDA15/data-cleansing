@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
   <groupId>de.hpi.fgis.willidennis</groupId>
   <artifactId>findSimilarNetflix</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>master-ceab5f0</version>
   <name>data_cleansing_flink</name>
   <description>Data Cleansing</description>
   <dependencies>
