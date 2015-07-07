@@ -40,7 +40,7 @@ object Main extends App {
 
 		// find out the n (signatureLength) rated movies with the least ratings
 
-		val sortedRatings = allRatingsOfUser.sortBy(rating => movieMap.get(rating.movie).get)
+		val sortedRatings = allRatingsOfUser.sortBy(rating => rating.movie).sortBy(rating => movieMap.get(rating.movie).get)
 		val prefix = sortedRatings.slice(0, prefixLength).toList
 
 		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
