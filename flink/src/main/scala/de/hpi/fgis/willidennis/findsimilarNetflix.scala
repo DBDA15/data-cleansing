@@ -208,6 +208,12 @@ object Main extends App {
 		bucket.size > 1
 	}
 
+	def ratingsPerMovieHistogram(movieStats: Map[Int, Int], config: Config, env: ExecutionEnvironment) = {
+		val moviesByNRatings = movieStats.groupBy(_._2)
+		val histogram = moviesByNRatings.map(x => (x._1, x._2.size)).toList
+		env.fromCollection(histogram).writeAsCsv(config.OUTPUT_FILE, writeMode = FileSystem.WriteMode.OVERWRITE)
+	}
+
 	def run(config: Config) {
 		val timeAtBeginning = System.currentTimeMillis
 
@@ -216,6 +222,8 @@ object Main extends App {
 		val mapped = parseFiles(config, env)
 
 		val movieStats = collectMovieStats(mapped)
+		//ratingsPerMovieHistogram(movieStats, config, env)
+
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
 		val userData = getUserData(users)
 
