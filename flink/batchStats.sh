@@ -23,6 +23,7 @@ do
 	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
 done
 
+flag=""
 files=100
 for cores in 20 10 4 2 1
 do
