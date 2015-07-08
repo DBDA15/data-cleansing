@@ -243,7 +243,12 @@ object Main extends App {
 
 	def ratingsPerMovieHistogram(movieStats: Map[Int, Int], config: Config, env: ExecutionEnvironment) = {
 		val moviesByNRatings = movieStats.groupBy(_._2)
-		val histogram = moviesByNRatings.map(x => (x._1, x._2.size)).toList
+		val histogram = moviesByNRatings.map {
+			x =>
+				val nRatings = x._1
+				val nMovies = x._2.size
+				(nRatings, nMovies)
+		}.toList.sortBy(_._1)
 		env.fromCollection(histogram).writeAsCsv(config.OUTPUT_FILE, writeMode = FileSystem.WriteMode.OVERWRITE)
 	}
 
