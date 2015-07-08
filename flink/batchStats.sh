@@ -10,6 +10,7 @@ cores=20
 files=200
 
 for flag in "" --USE_LENGTH_CLASSES_IN_SIG
+do
 	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
 	$FLINK run --class de.hpi.fgis.willidennis.Main \
 	$JAR \
@@ -20,6 +21,7 @@ for flag in "" --USE_LENGTH_CLASSES_IN_SIG
 	--CORES $cores \
 	$flag \
 	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
+done
 
 files=100
 for cores in 20 10 4 2 1
@@ -37,6 +39,7 @@ done
 
 files=500
 for flag in "" --USE_LENGTH_CLASSES_IN_SIG
+do
 	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
 	$FLINK run --class de.hpi.fgis.willidennis.Main \
 	$JAR \
@@ -47,5 +50,5 @@ for flag in "" --USE_LENGTH_CLASSES_IN_SIG
 	--CORES $cores \
 	$flag \
 	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
-
+done
 echo "finish:" $(date +"%T")
