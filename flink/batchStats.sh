@@ -6,7 +6,43 @@ OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/out"
 
 for sigSize in 1 2
 do
-	for files in 10 100 1000
+	for files in 10 100
+	do
+
+		echo "create Signatures s$sigSize f$files start:" $(date +"%T")
+		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
+		$pathToJars/findSimilarNetflix-377eaf-createSignatures.jar \
+		--TRAINING_PATH $MY_TRAINING_PATH$files/ \
+		--SIGNATURE_SIZE $sigSize --FILES 1 \
+		--EXECUTION_NAME "data-cleansing-createSigs-s($sigSize)f$files" \
+		--CORES 20 \
+		> "$LOG_DIR/log-createSigs-s$sigSizef$files"
+
+		echo "collect bucketsizes s$sigSize f$files start:" $(date +"%T")
+		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
+		$pathToJars/findSimilarNetflix-377eaf-collectBucketSizes.jar \
+		--TRAINING_PATH $MY_TRAINING_PATH$files/ \
+		--SIGNATURE_SIZE $sigSize --FILES 1 \
+		--STAT_FILE "$OUTPUT_DIR/bucketSizes-s$sigSize""f$files" \
+		--EXECUTION_NAME "data-cleansing-bucketSizes-s($sigSize)f$files" \
+		--CORES 20 \
+		> "$LOG_DIR/log-collectBucketSizes-s$sigSize""f$files"
+
+		echo "collect similars s$sigSize f$files start:" $(date +"%T")
+		$pathToBinFlink run --class de.hpi.fgis.willidennis.Main \
+		$pathToJars/findSimilarNetflix-377eaf-findSimilars.jar \
+		--TRAINING_PATH $MY_TRAINING_PATH$files/ \
+		--SIGNATURE_SIZE $sigSize --FILES 1 \
+		--OUTPUT_FILE "$OUTPUT_DIR/similars-s$sigSize""f$files" \
+		--EXECUTION_NAME "data-cleansing-findSimilars-s($sigSize)f$files" \
+		--CORES 20 \
+		> "$LOG_DIR/log-findSimilars-s$sigSize""f$files"
+	done
+done
+
+for files in 1000
+do
+	for sigSize in 1 2
 	do
 
 		echo "create Signatures s$sigSize f$files start:" $(date +"%T")
