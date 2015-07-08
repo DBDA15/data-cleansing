@@ -4,16 +4,19 @@ import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem
 import org.apache.flink.util.Collector
 import scopt.OptionParser
+import scala.collection.mutable.ArrayBuffer
 
-case class Config(CORES:Int = 1,
-									SIM_THRESHOLD:Double = 0.9,
-									SIGNATURE_SIZE:Int = 1,
-									TRAINING_PATH:String = "netflixdata/training_set/by_user/",
-									FILES:Int = 5,
-									LINES:Int = -1,
-									STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
-									OUTPUT_FILE:String = "file:///tmp/flink-output",
-									EXECUTION_NAME:String = "data-cleansing")
+case class Config(	CORES:Int = 1,
+					SIM_THRESHOLD:Double = 0.9,
+					SIGNATURE_SIZE:Int = 1,
+					TRAINING_PATH:String = "netflixdata/training_set/by_user/",
+					FILES:Int = 5,
+					LINES:Int = -1,
+					STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
+					OUTPUT_FILE:String = "file:///tmp/flink-output",
+					EXECUTION_NAME:String = "data-cleansing",
+					USE_LENGTH_CLASSES_IN_SIG:Boolean = false
+				)
 
 case class Rating(user:Int, movie:Int)
 case class SignatureKey(movie:Int)
@@ -66,7 +69,27 @@ object Main extends App {
 		}
 	}
 
-	def createSignature(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
+	def getLengthClasses(SIMTHRESHOLD:Double, numberOfRatings:Int): ArrayBuffer[Int] = {
+		val lengthClasses = ArrayBuffer[Int]()
+		var classBefore = 0
+		var thisClass = 0
+		do {
+			classBefore = thisClass
+			// TODO: does the lengthClass also have to do with the sigSize? (like the prefix does)
+			val classSize = classBefore - math.ceil(SIMTHRESHOLD*classBefore).toInt + 1
+			thisClass = classBefore + classSize
+		} while (numberOfRatings >= 2*thisClass - math.ceil(SIMTHRESHOLD*thisClass).toInt + 1);
+		lengthClasses.append(thisClass)
+		if(math.ceil(numberOfRatings*SIMTHRESHOLD)<thisClass) {
+			lengthClasses.append(classBefore)
+		}
+		return lengthClasses
+	}
+
+	def createSignature(config: Config, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
+		val SIMTHRESHOLD = config.SIM_THRESHOLD
+		val SIGNATURE_SIZE = config.SIGNATURE_SIZE
+
 		val allRatingsOfUser = in.toArray
 		val prefixLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
 		val userID = allRatingsOfUser(0).user
@@ -79,8 +102,16 @@ object Main extends App {
 		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
 
 		for(sig <- signatures) {
-			val signatureString = sig.map((x:Rating) => x.movie.toString).mkString(";")
-			out.collect( (signatureString, userID))
+			if(config.USE_LENGTH_CLASSES_IN_SIG) {
+				for(lengthClass <- getLengthClasses(SIMTHRESHOLD, allRatingsOfUser.size)) {
+					val signatureString = lengthClass + "_" + sig.map((x:Rating) => x.movie.toString).mkString(";")
+					out.collect( (signatureString, userID))
+				}
+			}
+			else {
+				val signatureString = sig.map((x:Rating) => x.movie.toString).mkString(";")
+				out.collect( (signatureString, userID))
+			}
 		}
 	}
 
@@ -184,6 +215,8 @@ object Main extends App {
 			opt[String]("EXECUTION_NAME") action { (s, c) =>
 				c.copy(EXECUTION_NAME = s)
 			} text ("Name of this execution")
+			opt[Unit]("USE_LENGTH_CLASSES_IN_SIG") action { (_, c) =>
+    			c.copy(USE_LENGTH_CLASSES_IN_SIG = true) } text("verbose is a flag")
 
 			help("help") text ("prints this usage text")
 		}
@@ -227,7 +260,7 @@ object Main extends App {
 		val users: GroupedDataSet[Rating] = mapped.groupBy("user")
 		val userData = getUserData(users)
 
-		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config.SIM_THRESHOLD, config.SIGNATURE_SIZE, movieStats, _, _))
+		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config, movieStats, _, _))
 
 		//val bucketSizes = collectBucketSize(signed)
 		//bucketSizes.writeAsCsv(config.STAT_FILE, writeMode = FileSystem.WriteMode.OVERWRITE)
