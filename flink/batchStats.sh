@@ -2,7 +2,7 @@ pathToBinFlink="/opt/flink/flink-0.9.0/bin/flink"
 pathToJars="target"
 MY_TRAINING_PATH="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set/cat"
 LOG_DIR="out/mylogs"
-OUTPUT_DIR="out"
+OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/out"
 
 for sigSize in 1 2
 do
