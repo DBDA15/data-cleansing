@@ -4,6 +4,7 @@ import org.apache.flink.api.scala._
 import org.apache.flink.core.fs.FileSystem
 import org.apache.flink.util.Collector
 import scopt.OptionParser
+import scala.collection.mutable.ArrayBuffer
 
 case class Config(CORES:Int = 1,
 									SIM_THRESHOLD:Double = 0.9,
@@ -66,6 +67,23 @@ object Main extends App {
 		}
 	}
 
+	def getLengthClasses(SIMTHRESHOLD:Double, numberOfRatings:Int): ArrayBuffer[Int] = {
+		val lengthClasses = ArrayBuffer[Int]()
+		var classBefore = 0
+		var thisClass = 0
+		do {
+			classBefore = thisClass
+			// TODO: does the lengthClass also have to do with the sigSize? (like the prefix does)
+			val classSize = classBefore - math.ceil(SIMTHRESHOLD*classBefore).toInt + 1
+			thisClass = classBefore + classSize
+		} while (numberOfRatings >= 2*thisClass - math.ceil(SIMTHRESHOLD*thisClass).toInt + 1);
+		lengthClasses.append(thisClass)
+		if(math.ceil(numberOfRatings*SIMTHRESHOLD)<thisClass) {
+			lengthClasses.append(classBefore)
+		}
+		return lengthClasses
+	}
+
 	def createSignature(SIMTHRESHOLD:Double, SIGNATURE_SIZE:Int, movieMap: Map[Int, Int], in: Iterator[Rating], out: Collector[(String, Int)])  {
 		val allRatingsOfUser = in.toArray
 		val prefixLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
@@ -79,8 +97,10 @@ object Main extends App {
 		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
 
 		for(sig <- signatures) {
-			val signatureString = sig.map((x:Rating) => x.movie.toString).mkString(";")
-			out.collect( (signatureString, userID))
+			for(lengthClass <- getLengthClasses(SIMTHRESHOLD, allRatingsOfUser.size)) {
+				val signatureString = lengthClass + "_" + sig.map((x:Rating) => x.movie.toString).mkString(";")
+				out.collect( (signatureString, userID))
+			}
 		}
 	}
 
