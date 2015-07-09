@@ -134,7 +134,7 @@ object Main extends App {
 				val candidatesInBucket = candidates.size + 1 		// already fetched first element
 				if(candidatesInBucket > 1)
 					out.collect((signature, candidatesInBucket))
-		}
+		}.name("collect bucket size")
 	}
 
 	def collectMovieStats(dataSet: DataSet[Rating]): Map[Int, Int] = {
@@ -143,7 +143,7 @@ object Main extends App {
 				val movieID = in.next.movie
 				val numberOfRatings = in.size + 1
 				out.collect(movieID -> numberOfRatings)
-		}
+		}.name("movie stats")
 		numberOfRatingsPerMovie.collect.toMap
 	}
 
@@ -152,7 +152,7 @@ object Main extends App {
 			(in:  Iterator[Rating], out: Collector[ (Int, Array[Rating]) ])  =>
 				val allRatings = in.toArray
 				out.collect((allRatings.head.user, allRatings))
-		}
+		}.name("collect user ratings")
 	}
 
 	def cleanAndFlattenBuckets(dataSet: DataSet[(String, Int)]): DataSet[(String, Int)] = {
@@ -165,14 +165,14 @@ object Main extends App {
 						out.collect((aUser._1, aUser._2))
 					}
 				}
-		}
+		}.name("clean and flatten buckets")
 	}
 
 	def joinCandidatesWithRatings(candidateBuckets: DataSet[(String, Int)],
 																userData: DataSet[(Int, Array[Rating])]): DataSet[(String, Array[Rating])] = {
 		val BUCKET_USER_ID = 1
 		val USER_DATA_USER_ID = 0
-		candidateBuckets.joinWithHuge(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x => (x._1._1, x._2._2))
+		candidateBuckets.joinWithHuge(userData).where(BUCKET_USER_ID).equalTo(USER_DATA_USER_ID).map(x => (x._1._1, x._2._2)).name("join candidates ⋈ ratings")
 	}
 
 	def similaritiesInBuckets(candidates:DataSet[(String, Array[Rating])], config: Config): DataSet[(Int, Int)] = {
@@ -181,7 +181,7 @@ object Main extends App {
 			(in:  Iterator[(String, Array[Rating])], out: Collector[ (Int, Int) ])  =>
 				val bucket = in.map(_._2).toArray
 				compareCandidates(config, bucket, out)
-		}
+		}.name("similarities in buckets")
 		return similar
 	}
 
@@ -268,14 +268,14 @@ object Main extends App {
 		val signed: DataSet[(String, Int)] = users.reduceGroup(createSignature(config, movieStats, _, _))
 
 		//val bucketSizes = collectBucketSize(signed)
-		//bucketSizes.writeAsCsv(config.STAT_FILE, writeMode = FileSystem.WriteMode.OVERWRITE)
+		//bucketSizes.writeAsCsv(config.STAT_FILE, writeMode = FileSystem.WriteMode.OVERWRITE).name("write bucket sizes")
 
 		val cleanFlatBuckets = cleanAndFlattenBuckets(signed)
 		val candidatesWithRatings = joinCandidatesWithRatings(cleanFlatBuckets, userData)
 
 		val similar = similaritiesInBuckets(candidatesWithRatings, config)
 
-		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE)
+		similar.writeAsCsv(config.OUTPUT_FILE, writeMode=FileSystem.WriteMode.OVERWRITE).name("write similarities")
 		//println(env.getExecutionPlan())
 		//outputStats(config, similar)
 
