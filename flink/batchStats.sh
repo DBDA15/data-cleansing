@@ -39,6 +39,7 @@ do
 done
 
 files=500
+cores=20
 for flag in "" --USE_LENGTH_CLASSES_IN_SIG
 do
 	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
