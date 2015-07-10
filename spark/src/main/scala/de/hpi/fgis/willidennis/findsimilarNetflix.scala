@@ -20,7 +20,7 @@ case class Config(	CORES:Int = 1,
 										EXECUTION_NAME:String = "data-cleansing",
 										USE_LENGTH_CLASSES_IN_SIG:Boolean = false,
 								 		MEMORY:String = "4g",
-										MASTER:String = "local[*]",	// use all cores, this overrides --CORES argument
+										MASTER:String = "spark://172.16.21.111:7077",//local[*]",	// use all cores, this overrides --CORES argument
 										MEASURE_STUFF:Boolean = false
 									 )
 
@@ -262,7 +262,7 @@ object Main extends App {
 	def configureSpark(conf: Config): SparkContext = {
 		var sparkConf = new SparkConf()
 		sparkConf.setAppName(conf.EXECUTION_NAME)
-		//sparkConf.set("spark.executor.memory", conf.MEMORY)
+		sparkConf.set("spark.executor.memory", conf.MEMORY)
 		sparkConf.set("spark.cores.max", conf.CORES.toString)
 		sparkConf.setMaster(conf.MASTER)
 		new SparkContext(sparkConf)
