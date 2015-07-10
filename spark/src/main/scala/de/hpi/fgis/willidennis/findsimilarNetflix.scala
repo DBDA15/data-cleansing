@@ -116,7 +116,7 @@ object Main extends App {
 				if(lengthFilter(user1.size, user2.size, config.SIM_THRESHOLD)) {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
-					if(simvalue >= 0.3*config.SIM_THRESHOLD) {
+					if(simvalue >= config.SIM_THRESHOLD) {
 						result.append((math.min(user1.head.user, user2.head.user), math.max(user1.head.user, user2.head.user)))
 					}
 				}
