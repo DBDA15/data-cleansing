@@ -45,4 +45,19 @@ $JAR \
 --CORES $cores \
 > "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
 
+files=1000
+cores=20
+
+echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
+$SPARK --class de.hpi.fgis.willidennis.Main \
+--master $MASTER \
+--conf spark.cores.max=$cores \
+$JAR \
+--TRAINING_PATH $INPUT$files/ \
+--SIGNATURE_SIZE $sigSize --FILES 1 \
+--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$flag" \
+--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$flag" \
+--CORES $cores \
+> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
+
 echo "finish:" $(date +"%T")
