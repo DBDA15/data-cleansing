@@ -2,7 +2,7 @@ package de.hpi.fgis.willidennis
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.RDD.rddToPairRDDFunctions
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{Accumulator, SparkConf, SparkContext}
 import scopt.OptionParser
 
 import scala.collection.mutable.ArrayBuffer
@@ -89,18 +89,20 @@ object Main extends App {
 	////////////////////////////
 	// JOIN IN BUCKETS
 	///////////////////////////
-	def similarities(config: Config, flattenedBuckets: RDD[(String, Iterable[Rating])]) : RDD[(Int, Int)] = {
+	def similarities(config: Config,
+									 flattenedBuckets: RDD[(String, Iterable[Rating])],
+									 comparisonsCounter: Accumulator[Long]): RDD[(Int, Int)] = {
 		// group by signature String
 		val bucketsBySignature = flattenedBuckets.groupBy(aSignatureUserPair => aSignatureUserPair._1).map(_._2)
 		// compare candidates for each group
 		bucketsBySignature.flatMap {
 			aBucket =>
 				val candidates = aBucket.map(_._2.toArray).toArray
-				compareCandidates(config, candidates)
+				compareCandidates(config, candidates, comparisonsCounter)
 		}
 	}
 
-	def compareCandidates(config:Config, bucket:Array[Array[Rating]]): ArrayBuffer[(Int, Int)] = {
+	def compareCandidates(config:Config, bucket:Array[Array[Rating]], comparisonsCounter: Accumulator[Long]): ArrayBuffer[(Int, Int)] = {
 		var comparisonsRaw = 0L
 		var comparisonsEffective = 0L
 
@@ -122,7 +124,7 @@ object Main extends App {
 				}
 			}
 		}
-		//comparisonsAccum += comparisonsEffective
+		comparisonsCounter += comparisonsEffective
 		return result
 	}
 
@@ -223,10 +225,10 @@ object Main extends App {
 		val signed = users.flatMap(x => createSignature(config, movieStats, x._2.toArray))
 		val buckets = cleanAndFlattenBuckets(signed)
 
-		//val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
+		val comparisonsCounter = sc.accumulator(0L, "Number of comparisons made")
 		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users)
 
-		val similar = similarities(config, candidatesWithRatings)
+		val similar = similarities(config, candidatesWithRatings, comparisonsCounter)
 		println(similar.take(10).toList)
 /*
 	val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
