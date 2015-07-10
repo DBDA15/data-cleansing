@@ -262,7 +262,7 @@ object Main extends App {
 	def configureSpark(conf: Config): SparkContext = {
 		var sparkConf = new SparkConf()
 		sparkConf.setAppName(conf.EXECUTION_NAME)
-		sparkConf.set("spark.executor.memory", conf.MEMORY)
+		//sparkConf.set("spark.executor.memory", conf.MEMORY)
 		sparkConf.set("spark.cores.max", conf.CORES.toString)
 		sparkConf.setMaster(conf.MASTER)
 		new SparkContext(sparkConf)
