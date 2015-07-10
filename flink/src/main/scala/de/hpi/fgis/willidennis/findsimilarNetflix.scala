@@ -11,7 +11,6 @@ case class Config(	CORES:Int = 1,
 					SIGNATURE_SIZE:Int = 1,
 					TRAINING_PATH:String = "netflixdata/training_set/by_user/",
 					FILES:Int = 5,
-					LINES:Int = -1,
 					STAT_FILE:String = "file:///tmp/flink-aggregated-stats",
 					OUTPUT_FILE:String = "file:///tmp/flink-output",
 					EXECUTION_NAME:String = "data-cleansing",
@@ -19,9 +18,6 @@ case class Config(	CORES:Int = 1,
 				)
 
 case class Rating(user:Int, movie:Int)
-case class SignatureKey(movie:Int)
-case class NumberOfRatingsPerUser(user:Int, number:Int)
-case class UserRatings(user:Int, ratings:Iterable[Rating])
 
 object Main extends App {
 
@@ -194,9 +190,6 @@ object Main extends App {
 			opt[Int]("FILES") action { (a, c) =>
 				c.copy(FILES = a)
 			} text ("number of files")
-			opt[Int]("LINES") action { (a, c) =>
-				c.copy(LINES = a)
-			} text ("first number of lines of input file")
 			opt[Int]("SIGNATURE_SIZE") action { (s, c) =>
 				c.copy(SIGNATURE_SIZE = s)
 			} text ("sig size")
