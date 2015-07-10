@@ -157,16 +157,33 @@ object Main extends App {
 		return mapped
 	}
 
-	def cleanAndFlattenBuckets(signed: RDD[(Int, String)]): RDD[(Int, String)] = {
+	def cleanAndFlattenBuckets(signed: RDD[(Int, String)]): RDD[(String, Iterable[(Int, String)])] = {
 		val groupedUsersBySignature = signed.groupBy(_._2)
 		val buckets = groupedUsersBySignature.filter(x => x._2.size > 1)
-		buckets.flatMap(x => x._2)
+		return buckets
+		//buckets.flatMap(x => x._2)
 	}
 
-	def joinCandidatesWithRatings(signedUsers: RDD[(Int, String)],
-																userData: RDD[(Int, Iterable[Rating])]): RDD[(String, Iterable[Rating])] = {
+	// TODO signedUsers: RDD[(String, RDD[(Int, String)]]
+	def joinCandidatesWithRatings(signedUsers: RDD[(String, Iterable[(Int, String)])],
+																userData: RDD[(Int, Iterable[Rating])],
+																sc: SparkContext): RDD[(String, Iterable[Rating])] = {
+		// TODO join in each bucket
 		// (K, V).join(K, W) => (K, (V, W))
-		signedUsers.join(userData).map((x:(Int, (String, Iterable[Rating]))) => (x._2._1, x._2._2))
+		signedUsers.map {
+			bucket =>
+				val bucketRDD = sc.makeRDD(bucket._2.toSeq)
+				/*
+					type mismatch for userData;
+					found   : org.apache.spark.rdd.RDD[(String, Iterable[de.hpi.fgis.willidennis.Rating])]
+					required: (String, Iterable[de.hpi.fgis.willidennis.Rating])
+				*/
+				bucketRDD.join(userData).map {
+					(x:(Int, (String, Iterable[Rating]))) =>
+						(x._2._1, x._2._2)
+				}
+				//sc.makeRDD(bucket.toSeq).join(userData).map((x: (Int, (String, Iterable[Rating]))) => (x._2._1, x._2._2))
+		}
 	}
 
 	def deleteOutPutFileIfExists(path: String) = {
@@ -236,8 +253,9 @@ object Main extends App {
 		val signed = users.flatMap(x => createSignature(config, movieStats, x._2.toArray))
 		val buckets = cleanAndFlattenBuckets(signed)
 
+		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users, sc)
+
 		val comparisonsCounter = sc.accumulator(0L, "Number of comparisons made")
-		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users)
 
 		val similar = similarities(config, candidatesWithRatings, comparisonsCounter)
 		// similar.distinct() // TODO @Dennis: I would accept duplicates because we have them in our flink measurements too
