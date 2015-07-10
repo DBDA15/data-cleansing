@@ -114,12 +114,23 @@ object Main extends App {
 	////////////////////////////
 	// JOIN IN BUCKETS
 	///////////////////////////
-/*	def compareCandidates(config:Config, bucket:RDD[(String, Iterable[(String, Int)])]): ArrayBuffer[(Int, Int)] = {
+	def similarities(config: Config, flattenedBuckets: RDD[(String, Iterable[Rating])]) : RDD[(Int, Int)] = {
+		// group by signature String
+		val bucketsBySignature = flattenedBuckets.groupBy(aSignatureUserPair => aSignatureUserPair._1).map(_._2)
+		// compare candidates for each group
+		bucketsBySignature.flatMap {
+			aBucket =>
+				val candidates = aBucket.map(_._2.toArray).toArray
+				compareCandidates(config, candidates)
+		}
+	}
+
+	def compareCandidates(config:Config, bucket:Array[Array[Rating]]): ArrayBuffer[(Int, Int)] = {
 		var comparisonsRaw = 0L
 		var comparisonsEffective = 0L
 
 		val result = ArrayBuffer[(Int, Int)]()
-		val candidates = bucket.collect.map(_._2.toArray)
+		val candidates = bucket
 		for(i<-0 to (candidates.length-2)) {
 			val user1 = candidates(i)
 
@@ -138,18 +149,19 @@ object Main extends App {
 		}
 		//comparisonsAccum += comparisonsEffective
 		return result
-	}*/
+	}
 
 	def lengthFilter(size1: Int, size2: Int, threshold:Double): Boolean = {
 		return math.max(size1, size2)*threshold <= math.min(size1, size2)
 	}
-/*
-	def similaritiesInBuckets(config: Config, buckets: RDD[(String, Iterable[(String, Int)])]) : RDD[(Int, Int)] = {
-		// TODO maybe return RDD[(Int, Int)] ?
-		// group by signature String
-		// compare candidates for each group
-		buckets.flatMap(bucket => compareCandidates(config, bucket))
-	}*/
+
+	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
+		val u1set = user1.map(x => x.movie).toSet
+		val u2set = user2.map(x => x.movie).toSet
+
+		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
+	}
+
 	////////////////////////
 	// INPUT
 	///////////////////////
@@ -301,9 +313,10 @@ object Main extends App {
 		//val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
 		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users)
 
-		println(candidatesWithRatings.count)
-		//val similar = similaritiesInBuckets(config, buckets)
-/*		val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
+		val similar = similarities(config, candidatesWithRatings)
+		println(similar.take(10).toList)
+/*
+	val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
 		//similarities.cache()
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount}, took ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
