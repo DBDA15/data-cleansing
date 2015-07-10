@@ -169,6 +169,14 @@ object Main extends App {
 		signedUsers.join(userData).map((x:(Int, (String, Iterable[Rating]))) => (x._2._1, x._2._2))
 	}
 
+	def deleteOutPutFileIfExists(path: String) = {
+		// from http://stackoverflow.com/a/27101351/1510622
+		val hadoopConf = new org.apache.hadoop.conf.Configuration()
+		val hdfs = org.apache.hadoop.fs.FileSystem.get(new java.net.URI(path), hadoopConf)
+		try { hdfs.delete(new org.apache.hadoop.fs.Path(path), true)}
+		catch { case _ : Throwable => { } }
+	}
+
 	override def main(args: Array[String]) = {
 		val parser = new OptionParser[Config]("find similar") {
 			head("data.cleansing", "0.1")
@@ -229,6 +237,8 @@ object Main extends App {
 		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users)
 
 		val similar = similarities(config, candidatesWithRatings, comparisonsCounter)
+		deleteOutPutFileIfExists(config.OUTPUT_FILE)
+		similar.saveAsTextFile(config.OUTPUT_FILE)
 		println(similar.take(10).toList)
 /*
 	val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
