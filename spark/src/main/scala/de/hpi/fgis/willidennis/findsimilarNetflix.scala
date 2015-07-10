@@ -46,8 +46,8 @@ object Main extends App {
 		return ratingsWithSignatures
 	}*/
 
-	def createSignature(config: Config, movieMap: Map[Int, Int], allRatingsOfUser: Array[Rating]): ArrayBuffer[(String, Int)] = {
-		val out = ArrayBuffer[(String, Int)]()
+	def createSignature(config: Config, movieMap: Map[Int, Int], allRatingsOfUser: Array[Rating]): ArrayBuffer[(Int, String)] = {
+		val out = ArrayBuffer[(Int, String)]()	//Int, String to make it joinable in spark on userID:Int
 		val SIMTHRESHOLD = config.SIM_THRESHOLD
 		val SIGNATURE_SIZE = config.SIGNATURE_SIZE
 
@@ -65,12 +65,12 @@ object Main extends App {
 			if(config.USE_LENGTH_CLASSES_IN_SIG) {
 				for(lengthClass <- getLengthClasses(SIMTHRESHOLD, allRatingsOfUser.size)) {
 					val signatureString = lengthClass + "_" + sig.map((x:Rating) => x.movie.toString).mkString(";")
-					out.append( (signatureString, userID))
+					out.append( (userID, signatureString))
 				}
 			}
 			else {
 				val signatureString = sig.map((x:Rating) => x.movie.toString).mkString(";")
-				out.append( (signatureString, userID))
+				out.append( (userID, signatureString))
 			}
 		}
 		return out
@@ -114,12 +114,12 @@ object Main extends App {
 	////////////////////////////
 	// JOIN IN BUCKETS
 	///////////////////////////
-	def compareCandidates(candidates:Array[ Iterable[Rating] ], comparisonsAccum:Accumulator[Long], SIM_THRESHOLD:Double): ArrayBuffer[(Int, Int)] = {
+/*	def compareCandidates(config:Config, bucket:RDD[(String, Iterable[(String, Int)])]): ArrayBuffer[(Int, Int)] = {
 		var comparisonsRaw = 0L
 		var comparisonsEffective = 0L
 
 		val result = ArrayBuffer[(Int, Int)]()
-
+		val candidates = bucket.collect.map(_._2.toArray)
 		for(i<-0 to (candidates.length-2)) {
 			val user1 = candidates(i)
 
@@ -127,23 +127,29 @@ object Main extends App {
 			for(n<-(i+1) to (candidates.length-1)) {
 				val user2 = candidates(n)
 				comparisonsRaw += 1
-				if(lengthFilter(user1.size, user2.size, SIM_THRESHOLD)) {
+				if(lengthFilter(user1.size, user2.size, config.SIM_THRESHOLD)) {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
-					if(simvalue >= SIM_THRESHOLD) {
+					if(simvalue >= config.SIM_THRESHOLD) {
 						result.append((math.min(user1.head.user, user2.head.user), math.max(user1.head.user, user2.head.user)))
 					}
 				}
 			}
 		}
-		comparisonsAccum += comparisonsEffective
+		//comparisonsAccum += comparisonsEffective
 		return result
-	}
+	}*/
 
 	def lengthFilter(size1: Int, size2: Int, threshold:Double): Boolean = {
 		return math.max(size1, size2)*threshold <= math.min(size1, size2)
 	}
-
+/*
+	def similaritiesInBuckets(config: Config, buckets: RDD[(String, Iterable[(String, Int)])]) : RDD[(Int, Int)] = {
+		// TODO maybe return RDD[(Int, Int)] ?
+		// group by signature String
+		// compare candidates for each group
+		buckets.flatMap(bucket => compareCandidates(config, bucket))
+	}*/
 	////////////////////////
 	// INPUT
 	///////////////////////
@@ -192,16 +198,17 @@ object Main extends App {
 		return parsed
 	}*/
 
-	def cleanBuckets(dataSet: RDD[(String, Int)]): RDD[(String, Iterable[(String, Int)])] = {
-		dataSet.groupBy(_._1).filter(x => x._2.size > 1 )
+	def cleanAndFlattenBuckets(signed: RDD[(Int, String)]): RDD[(Int, String)] = {
+		val groupedUsersBySignature = signed.groupBy(_._2)
+		val buckets = groupedUsersBySignature.filter(x => x._2.size > 1)
+		buckets.flatMap(x => x._2)
 	}
 
-/*	def joinCandidatesWithRatings(candidateBuckets: RDD[(String, Iterable[(String, Int)])],
+	def joinCandidatesWithRatings(signedUsers: RDD[(Int, String)],
 																userData: RDD[(Int, Iterable[Rating])]): RDD[(String, Iterable[Rating])] = {
-		//val bucketInJoinOrder = candidateBuckets.map(x => (x._2, x._1))
-		// TODO problem: (K, V).join(K, V) => (K, Iterable[V])
-		candidateBuckets.join(userData).map(x => (x._1, x._2._2))
-	}*/
+		// (K, V).join(K, W) => (K, (V, W))
+		signedUsers.join(userData).map((x:(Int, (String, Iterable[Rating]))) => (x._2._1, x._2._2))
+	}
 
 		override def main(args: Array[String]) = {
 		val parser = new OptionParser[Config]("find similar") {
@@ -289,12 +296,13 @@ object Main extends App {
 		val users = ratings.groupBy(_.user)
 
 		val signed = users.flatMap(x => createSignature(config, movieStats, x._2.toArray))
-		val cleanFlatBuckets = cleanBuckets(signed)
+		val buckets = cleanAndFlattenBuckets(signed)
 
-		val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
-		//val candidatesWithRatings = joinCandidatesWithRatings(cleanFlatBuckets, users)
+		//val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
+		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users)
 
-		println(cleanFlatBuckets.count)
+		println(candidatesWithRatings.count)
+		//val similar = similaritiesInBuckets(config, buckets)
 /*		val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
 		//similarities.cache()
 		val simcount = similarities.count
