@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 FLINK="/opt/flink/flink-0.9.0/bin/flink"
 JAR="target/findSimilarNetflix-1.0.jar"
 INPUT="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set/cat"

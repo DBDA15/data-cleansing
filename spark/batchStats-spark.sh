@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# SPARK="/opt/spark/spark-1.3.0/bin/spark-submit"
-SPARK=spark-submit
+SPARK="/opt/spark/spark-1.3.0/bin/spark-submit"
+# SPARK=spark-submit
 JAR="target/findSimilarNetflix-1.0.jar"
-#INPUT="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set/cat"
-INPUT="../netflixdata/cat"
-# LOG_DIR="out/mylogs/spark"
-LOG_DIR="."
-#OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/spark/out"
-OUTPUT_DIR="/tmp/spark-output"
+INPUT="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set/cat"
+# INPUT="../netflixdata/cat"
+LOG_DIR="out/mylogs/spark"
+# LOG_DIR="."
+OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/spark/out"
+# OUTPUT_DIR="/tmp/spark-output"
 BUILD="1.0"
-# MASTER="spark://172.16.21.111:7077"
-MASTER="localhost:4041"
+MASTER="spark://172.16.21.111:7077"
+# MASTER="localhost:4041"
 
 sigSize=1
 flag=""
