@@ -13,7 +13,7 @@ case class SignatureKey(movie:Int, stars:Int)
 case class Config(	CORES:Int = 1,
 										SIM_THRESHOLD:Double = 0.9,
 										SIGNATURE_SIZE:Int = 1,
-										TRAINING_PATH:String = "netflixdata/training_set/by_user/",
+										TRAINING_PATH:String = "../netflixdata/training_set/by_user/",
 										FILES:Int = 5,
 										STAT_FILE:String = "file:///tmp/spark-aggregated-stats",
 										OUTPUT_FILE:String = "file:///tmp/spark-output",
