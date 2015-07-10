@@ -160,11 +160,8 @@ object Main extends App {
 		dataSet.groupBy(SIGNATURE).reduceGroup {
 			(in:  Iterator[(String,Int)], out: Collector[ (String, Int) ]) =>
 				val userIdBucket = in.toList
-				if(hasPairsInBucket(userIdBucket)) {
-					for (aUser<- userIdBucket) {
-						out.collect((aUser._1, aUser._2))
-					}
-				}
+				if(hasPairsInBucket(userIdBucket))
+					userIdBucket.foreach(aUser => out.collect(aUser))
 		}.name("clean and flatten buckets")
 	}
 
