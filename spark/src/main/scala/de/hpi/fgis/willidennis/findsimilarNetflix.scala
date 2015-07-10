@@ -20,7 +20,8 @@ case class Config(	CORES:Int = 1,
 										EXECUTION_NAME:String = "data-cleansing",
 										USE_LENGTH_CLASSES_IN_SIG:Boolean = false,
 								 		MEMORY:String = "4g",
-										MASTER:String = "local[*]"
+										MASTER:String = "local[*]",
+										MEASURE_STUFF:Boolean = false
 									 )
 
 object Main extends App {
@@ -102,29 +103,28 @@ object Main extends App {
 		}
 	}
 
-	def compareCandidates(config:Config, bucket:Array[Array[Rating]], comparisonsCounter: Accumulator[Long]): ArrayBuffer[(Int, Int)] = {
-		var comparisonsRaw = 0L
+	def compareCandidates(config:Config, candidates:Array[Array[Rating]], comparisonsCounter: Accumulator[Long]): ArrayBuffer[(Int, Int)] = {
 		var comparisonsEffective = 0L
 
 		val result = ArrayBuffer[(Int, Int)]()
-		val candidates = bucket
 		for(i<-0 to (candidates.length-2)) {
 			val user1 = candidates(i)
 
 			/* compare with all elements that follow */
 			for(n<-(i+1) to (candidates.length-1)) {
 				val user2 = candidates(n)
-				comparisonsRaw += 1
 				if(lengthFilter(user1.size, user2.size, config.SIM_THRESHOLD)) {
 					val simvalue = calculateSimilarity(user1, user2)
 					comparisonsEffective += 1
-					if(simvalue >= config.SIM_THRESHOLD) {
+					if(simvalue >= 0.3*config.SIM_THRESHOLD) {
 						result.append((math.min(user1.head.user, user2.head.user), math.max(user1.head.user, user2.head.user)))
 					}
 				}
 			}
 		}
-		comparisonsCounter += comparisonsEffective
+		if(config.MEASURE_STUFF) {
+			comparisonsCounter += comparisonsEffective
+		}
 		return result
 	}
 
@@ -210,8 +210,11 @@ object Main extends App {
 			opt[String]("MASTER") action { (s, c) =>
 				c.copy(MASTER = s)
 			} text ("Spark cluster master")
+			opt[Unit]("MEASURE_STUFF") action { (_, c) =>
+				c.copy(MEASURE_STUFF = true)
+			} text ("flag to perform measurements not done with Flink")
 			opt[Unit]("USE_LENGTH_CLASSES_IN_SIG") action { (_, c) =>
-				c.copy(USE_LENGTH_CLASSES_IN_SIG = true) } text("verbose is a flag")
+				c.copy(USE_LENGTH_CLASSES_IN_SIG = true) } text("is a flag")
 
 			help("help") text ("prints this usage text")
 		}
@@ -237,24 +240,23 @@ object Main extends App {
 		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users)
 
 		val similar = similarities(config, candidatesWithRatings, comparisonsCounter)
+		// similar.distinct() // TODO @Dennis: I would accept duplicates because we have them in our flink measurements too
+		if(config.MEASURE_STUFF) {
+			similar.cache()
+			val simcount = similar.count
+			println(s"\n ####### Similarities before duplicate removal: ${simcount}, took ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
+
+			val noduplicates = similar.distinct()
+			val nodupcount = noduplicates.count
+			println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
+			println(s"\n ####### Duplicates: ${1-(nodupcount/simcount)}%###### \n\n")
+			println(s"\n ####### Comparisons : ${comparisonsCounter} #######")
+		}
 		deleteOutPutFileIfExists(config.OUTPUT_FILE)
 		similar.saveAsTextFile(config.OUTPUT_FILE)
-		println(similar.take(10).toList)
-/*
-	val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
-		//similarities.cache()
-		val simcount = similarities.count
-		println(s"\n ####### Similarities before duplicate removal: ${simcount}, took ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
+		//println(similar.take(10).toList)
 
-		//val noduplicates = similarities.distinct()
-		//val nodupcount = noduplicates.count
-		//println(s"\n ####### Similarities after duplicate removal: ${nodupcount} ###### \n\n")
-		//println(s"\n ####### Duplicates: ${1-(nodupcount/simcount)}%###### \n\n")
-
-		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
-
-		println(s"\n ####### Ratings: ${ratings.count} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), total: ${(System.currentTimeMillis-timeAtBeginning)/1000}s using ${NROFCORES} cores ###### \n")
-		println(s"\n ####### Comparisons: ${comparisonsAccum} #######")*/
+		System.err.println(s"#### time: ${System.currentTimeMillis - timeAtBeginning}")
 	}
 
 	def configureSpark(conf: Config): SparkContext = {
