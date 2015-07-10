@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
   <groupId>de.hpi.fgis.willidennis</groupId>
   <artifactId>findSimilarNetflix</artifactId>
-  <version>0.0.1-SNAPSHOT</version>
+  <version>1.0</version>
   <name>data_cleansing_scala</name>
   <description>Data Cleansing</description>
   <dependencies>
@@ -17,12 +17,22 @@
       <artifactId>scala-library</artifactId>
       <version>2.10.5</version>
     </dependency>
+    <dependency>
+      <groupId>com.github.scopt</groupId>
+      <artifactId>scopt_2.10</artifactId>
+      <version>3.2.0</version>
+    </dependency>
   </dependencies>
   <repositories>
     <repository>
       <id>scala-tools.org</id>
       <name>Scala-tools Maven2 Repository</name>
       <url>http://scala-tools.org/repo-releases</url>
+    </repository>
+    <repository>
+      <id>central.maven.org</id>
+      <name>Maven Central</name>
+      <url>http://central.maven.org/maven2</url>
     </repository>
   </repositories>
   <pluginRepositories>
@@ -40,6 +50,7 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-jar-plugin</artifactId>
+          <version>2.4</version>
           <configuration>
             <archive>
               <manifest>
@@ -54,7 +65,7 @@
       <plugin>
         <groupId>org.scala-tools</groupId>
         <artifactId>maven-scala-plugin</artifactId>
-        <!--<version>2.15.2</version>-->
+        <version>2.15.2</version>
         <executions>
           <execution>
             <goals>

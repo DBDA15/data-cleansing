@@ -1,23 +1,33 @@
 package de.hpi.fgis.willidennis
 
-import org.apache.spark.SparkConf
-import org.apache.spark.SparkContext
-import org.apache.spark.rdd.RDD.rddToPairRDDFunctions
 import org.apache.spark.rdd.RDD
-
-import org.apache.log4j.Logger
-import org.apache.log4j.Level
+import org.apache.spark.rdd.RDD.rddToPairRDDFunctions
+import org.apache.spark.{Accumulator, SparkConf, SparkContext}
+import scopt.OptionParser
 
 import scala.collection.mutable.ArrayBuffer
-import Array._
-import org.apache.spark.Accumulator
 
-case class Rating(user:Int, movie:Int, stars:Int)
+case class Rating(user:Int, movie:Int)
 case class SignatureKey(movie:Int, stars:Int)
+
+case class Config(	CORES:Int = 1,
+										SIM_THRESHOLD:Double = 0.9,
+										SIGNATURE_SIZE:Int = 1,
+										TRAINING_PATH:String = "netflixdata/training_set/by_user/",
+										FILES:Int = 5,
+										STAT_FILE:String = "file:///tmp/spark-aggregated-stats",
+										OUTPUT_FILE:String = "file:///tmp/spark-output",
+										EXECUTION_NAME:String = "data-cleansing",
+										USE_LENGTH_CLASSES_IN_SIG:Boolean = false,
+								 		MEMORY:String = "4g"
+									 )
 
 object Main extends App {
 
-	def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int, SIM_THRESHOLD:Double) : Array[(String, Array[Iterable[Rating]])] = {
+	////////////////////////////
+	// SIGNATURE
+	///////////////////////////
+	/*def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int, SIM_THRESHOLD:Double) : Array[(String, Array[Iterable[Rating]])] = {
 		val ratings = user._2
 
 		val signatureLength = ratings.size - math.ceil(SIM_THRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
@@ -33,6 +43,53 @@ object Main extends App {
 			ratingsWithSignatures(i) = ( (signatureString, Array(ratings)) )
 		}
 		return ratingsWithSignatures
+	}*/
+
+	def createSignature(config: Config, movieMap: Map[Int, Int], allRatingsOfUser: Array[Rating]): ArrayBuffer[(String, Int)] = {
+		val out = ArrayBuffer[(String, Int)]()
+		val SIMTHRESHOLD = config.SIM_THRESHOLD
+		val SIGNATURE_SIZE = config.SIGNATURE_SIZE
+
+		val prefixLength = allRatingsOfUser.size - math.ceil(SIMTHRESHOLD*allRatingsOfUser.size).toInt + SIGNATURE_SIZE
+		val userID = allRatingsOfUser(0).user
+
+		// find out the n (signatureLength) rated movies with the least ratings
+		val sortedRatings = allRatingsOfUser.sortBy(_.movie).sortBy(rating => movieMap.get(rating.movie).get)
+		//val sortedRatings = allRatingsOfUser.sortBy(_.movie)
+		val prefix = sortedRatings.slice(0, prefixLength)
+
+		val signatures = combinations(prefix.toList, SIGNATURE_SIZE).toArray
+
+		for(sig <- signatures) {
+			if(config.USE_LENGTH_CLASSES_IN_SIG) {
+				for(lengthClass <- getLengthClasses(SIMTHRESHOLD, allRatingsOfUser.size)) {
+					val signatureString = lengthClass + "_" + sig.map((x:Rating) => x.movie.toString).mkString(";")
+					out.append( (signatureString, userID))
+				}
+			}
+			else {
+				val signatureString = sig.map((x:Rating) => x.movie.toString).mkString(";")
+				out.append( (signatureString, userID))
+			}
+		}
+		return out
+	}
+
+	def getLengthClasses(SIMTHRESHOLD:Double, numberOfRatings:Int): ArrayBuffer[Int] = {
+		val lengthClasses = ArrayBuffer[Int]()
+		var classBefore = 0
+		var thisClass = 0
+		do {
+			classBefore = thisClass
+			// TODO: does the lengthClass also have to do with the sigSize? (like the prefix does)
+			val classSize = classBefore - math.ceil(SIMTHRESHOLD*classBefore).toInt + 1
+			thisClass = classBefore + classSize
+		} while (numberOfRatings >= 2*thisClass - math.ceil(SIMTHRESHOLD*thisClass).toInt + 1);
+		lengthClasses.append(thisClass)
+		if(math.ceil(numberOfRatings*SIMTHRESHOLD)<thisClass) {
+			lengthClasses.append(classBefore)
+		}
+		return lengthClasses
 	}
 
 	def combinations[T](aList:List[T], n:Int) : Iterator[List[T]] = {
@@ -40,13 +97,22 @@ object Main extends App {
 		return aList.combinations(n)
 	}
 
+	def collectMovieStats(ratings: RDD[Rating]): Map[Int, Int] = {
+		val ratingsPerMovie = ratings.groupBy(aRating => aRating.movie)
+		val numberOfRatingsPerMovie = ratingsPerMovie.map(x => (x._1 -> x._2.size))
+		numberOfRatingsPerMovie.collectAsMap.toMap
+	}
+
 	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
-		val u1set = user1.map(x => (x.movie, x.stars)).toSet
-		val u2set = user2.map(x => (x.movie, x.stars)).toSet
+		val u1set = user1.map(x => x.movie).toSet
+		val u2set = user2.map(x => x.movie).toSet
 
 		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
+	////////////////////////////
+	// JOIN IN BUCKETS
+	///////////////////////////
 	def compareCandidates(candidates:Array[ Iterable[Rating] ], comparisonsAccum:Accumulator[Long], SIM_THRESHOLD:Double): ArrayBuffer[(Int, Int)] = {
 		var comparisonsRaw = 0L
 		var comparisonsEffective = 0L
@@ -77,12 +143,25 @@ object Main extends App {
 		return math.max(size1, size2)*threshold <= math.min(size1, size2)
 	}
 
-	def parseLine(line: String, movid:Int): Rating = {
+	////////////////////////
+	// INPUT
+	///////////////////////
+	def parseLine(line: String):Rating = {
 		val splitted = line.split(",")
-		return Rating(splitted(0).toInt, movid, splitted(1).toInt)
+		return Rating(splitted(0).toInt, splitted(1).toInt)
 	}
 
-	def parseFiles(sc:SparkContext, TRAINING_PATH: String, numberOfFiles: Int, firstNLineOfFile: Int) : RDD[Rating] = {
+	def parseFiles(config:Config, sc:SparkContext): RDD[Rating] = {
+		var mapped: RDD[Rating] = sc.parallelize(Array[Rating]())
+
+		for(i <- 0 to config.FILES - 1) {
+			var text = sc.textFile(config.TRAINING_PATH + s"${i}.csv")
+			mapped = mapped.union(text.map(line => parseLine(line)))
+		}
+		return mapped
+	}
+
+/*	def parseFiles(sc:SparkContext, TRAINING_PATH: String, numberOfFiles: Int, firstNLineOfFile: Int) : RDD[Rating] = {
 		var parsed = sc.parallelize(Array[Rating]())	// build empty RDD
 
 		val fileRDDs = new Array[org.apache.spark.rdd.RDD[Rating]](numberOfFiles/200)
@@ -110,12 +189,65 @@ object Main extends App {
 			parsed = parsed ++ myrdd
 		}
 		return parsed
+	}*/
+
+	def cleanBuckets(dataSet: RDD[(String, Int)]): RDD[(String, Iterable[(String, Int)])] = {
+		dataSet.groupBy(_._1).filter(x => x._2.size > 1 )
 	}
 
-	override def main(args: Array[String]) = {
+/*	def joinCandidatesWithRatings(candidateBuckets: RDD[(String, Iterable[(String, Int)])],
+																userData: RDD[(Int, Iterable[Rating])]): RDD[(String, Iterable[Rating])] = {
+		//val bucketInJoinOrder = candidateBuckets.map(x => (x._2, x._1))
+		// TODO problem: (K, V).join(K, V) => (K, Iterable[V])
+		candidateBuckets.join(userData).map(x => (x._1, x._2._2))
+	}*/
+
+		override def main(args: Array[String]) = {
+		val parser = new OptionParser[Config]("find similar") {
+			head("data.cleansing", "0.1")
+			opt[String]("TRAINING_PATH") action { (path, c) =>
+				c.copy(TRAINING_PATH = path)
+			} text ("path of training data set")
+			opt[Int]("CORES") action { (n, c) =>
+				c.copy(CORES = n)
+			} text ("number of cores")
+			opt[Int]("FILES") action { (a, c) =>
+				c.copy(FILES = a)
+			} text ("number of files")
+			opt[Int]("SIGNATURE_SIZE") action { (s, c) =>
+				c.copy(SIGNATURE_SIZE = s)
+			} text ("sig size")
+			opt[Double]("SIM_THRESHOLD") action { (s, c) =>
+				c.copy(SIM_THRESHOLD = s)
+			} text ("jaccard similarity threshold")
+			opt[String]("STAT_FILE") action { (s, c) =>
+				c.copy(STAT_FILE = s)
+			} text ("file for stats printing")
+			opt[String]("OUTPUT_FILE") action { (s, c) =>
+				c.copy(OUTPUT_FILE = s)
+			} text ("file for stats printing")
+			opt[String]("MEMORY") action { (s, c) =>
+				c.copy(MEMORY = s)
+			} text ("Spark Worker Memory")
+			opt[String]("EXECUTION_NAME") action { (s, c) =>
+				c.copy(EXECUTION_NAME = s)
+			} text ("Name of this execution")
+			opt[Unit]("USE_LENGTH_CLASSES_IN_SIG") action { (_, c) =>
+				c.copy(USE_LENGTH_CLASSES_IN_SIG = true) } text("verbose is a flag")
+
+			help("help") text ("prints this usage text")
+		}
+		//run with:
+		parser.parse(args, new Config) match {
+			case Some(config) => run(config)
+			case None => // arguments are bad, error message will have been displayed
+		}
+	}
+
+	def run(config: Config) = {
 		val timeAtBeginning = System.currentTimeMillis
 
-		var firstNLineOfFile = -1
+		/*var firstNLineOfFile = -1
 		var numberOfFiles = 4
 		var numberOfMoviesForSig = 2
 		var TRAINING_PATH = "netflixdata/training_set/"
@@ -144,22 +276,22 @@ object Main extends App {
 
 		if(args.size > 5) {
 			SIM_THRESHOLD = args(5).toInt
-		}
+		}*/
 
-		var conf = new SparkConf()
-		conf.setAppName(Main.getClass.getName)
-		conf.set("spark.executor.memory", "4g")
-		val sc = new SparkContext(conf)
+		val sc: SparkContext = configureSpark(config)
 
-		val ratings = parseFiles(sc, TRAINING_PATH, numberOfFiles, firstNLineOfFile)
+		val ratings = parseFiles(config, sc)
+		val movieStats = collectMovieStats(ratings)
 		val users = ratings.groupBy(_.user)
 
-		val signed = users.flatMap(x => determineSignature(x, SIGNATURE_SIZE, SIM_THRESHOLD))
-		val buckets = signed.reduceByKey((a,b) => a ++ b).values.filter(_.size > 1)
+		val signed = users.flatMap(x => createSignature(config, movieStats, x._2.toArray))
+		val cleanFlatBuckets = cleanBuckets(signed)
 
 		val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
+		//val candidatesWithRatings = joinCandidatesWithRatings(cleanFlatBuckets, users)
 
-		val similarities = buckets.flatMap(x => compareCandidates(x, comparisonsAccum, SIM_THRESHOLD))
+		println(cleanFlatBuckets.map(x => List(x._1, x._2.size)))
+/*		val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
 		//similarities.cache()
 		val simcount = similarities.count
 		println(s"\n ####### Similarities before duplicate removal: ${simcount}, took ${(System.currentTimeMillis-timeAtBeginning)/1000}s ###### \n")
@@ -172,6 +304,13 @@ object Main extends App {
 		//reduced.map(x => (x.size)).saveAsTextFile(RESULTS_PATH)
 
 		println(s"\n ####### Ratings: ${ratings.count} in ${numberOfFiles} files (first ${firstNLineOfFile} lines), total: ${(System.currentTimeMillis-timeAtBeginning)/1000}s using ${NROFCORES} cores ###### \n")
-		println(s"\n ####### Comparisons: ${comparisonsAccum} #######")
+		println(s"\n ####### Comparisons: ${comparisonsAccum} #######")*/
+	}
+
+	def configureSpark(conf: Config): SparkContext = {
+		var sparkConf = new SparkConf()
+		sparkConf.setAppName(Main.getClass.getName)
+		sparkConf.set("spark.executor.memory", conf.MEMORY)
+		new SparkContext(sparkConf)
 	}
 }
