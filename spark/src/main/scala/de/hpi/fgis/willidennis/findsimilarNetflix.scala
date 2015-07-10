@@ -2,7 +2,7 @@ package de.hpi.fgis.willidennis
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.RDD.rddToPairRDDFunctions
-import org.apache.spark.{Accumulator, SparkConf, SparkContext}
+import org.apache.spark.{SparkConf, SparkContext}
 import scopt.OptionParser
 
 import scala.collection.mutable.ArrayBuffer
@@ -28,24 +28,6 @@ object Main extends App {
 	////////////////////////////
 	// SIGNATURE
 	///////////////////////////
-	/*def determineSignature (user: (Int, Iterable[Rating]), SIGNATURE_SIZE:Int, SIM_THRESHOLD:Double) : Array[(String, Array[Iterable[Rating]])] = {
-		val ratings = user._2
-
-		val signatureLength = ratings.size - math.ceil(SIM_THRESHOLD*ratings.size).toInt + SIGNATURE_SIZE
-
-		//val ratingsWithSignatures = new Array[(SignatureKey, Array[Iterable[Rating]])](signatureLength)
-		val sortedRatings = ratings.toArray.sortBy(_.movie)
-		val prefix = sortedRatings.slice(0, signatureLength).toList
-		val signatures = combinations(prefix, SIGNATURE_SIZE).toArray
-		val ratingsWithSignatures = new Array[(String, Array[Iterable[Rating]])] (signatures.length)
-		for(i <- 0 to signatures.length - 1) {
-			val longSignature = signatures(i).map((s:Rating) => SignatureKey(s.movie, s.stars))
-			val signatureString = longSignature.map(x => x.movie.toString + ',' +x.stars.toString).mkString(";")
-			ratingsWithSignatures(i) = ( (signatureString, Array(ratings)) )
-		}
-		return ratingsWithSignatures
-	}*/
-
 	def createSignature(config: Config, movieMap: Map[Int, Int], allRatingsOfUser: Array[Rating]): ArrayBuffer[(Int, String)] = {
 		val out = ArrayBuffer[(Int, String)]()	//Int, String to make it joinable in spark on userID:Int
 		val SIMTHRESHOLD = config.SIM_THRESHOLD
@@ -102,13 +84,6 @@ object Main extends App {
 		val ratingsPerMovie = ratings.groupBy(aRating => aRating.movie)
 		val numberOfRatingsPerMovie = ratingsPerMovie.map(x => (x._1 -> x._2.size))
 		numberOfRatingsPerMovie.collectAsMap.toMap
-	}
-
-	def calculateSimilarity(user1: Iterable[Rating], user2: Iterable[Rating]) : Double = {
-		val u1set = user1.map(x => x.movie).toSet
-		val u2set = user2.map(x => x.movie).toSet
-
-		return u1set.intersect(u2set).size.toDouble / u1set.union(u2set).size.toDouble
 	}
 
 	////////////////////////////
@@ -180,36 +155,6 @@ object Main extends App {
 		return mapped
 	}
 
-/*	def parseFiles(sc:SparkContext, TRAINING_PATH: String, numberOfFiles: Int, firstNLineOfFile: Int) : RDD[Rating] = {
-		var parsed = sc.parallelize(Array[Rating]())	// build empty RDD
-
-		val fileRDDs = new Array[org.apache.spark.rdd.RDD[Rating]](numberOfFiles/200)
-
-		/* split RDD every N files to avoid stackoverflow */
-		val splitRDDeveryNfiles = 200
-		for(i <- 1 to numberOfFiles) {
-		var thisDataset = sc.textFile(TRAINING_PATH+"mv_" + "%07d".format(i) + ".txt").filter(!_.contains(":")).map(line => parseLine(line, i))
-
-		if(firstNLineOfFile> (-1)) {
-		thisDataset = sc.parallelize(thisDataset.take(firstNLineOfFile))
-	}
-
-		if(i%splitRDDeveryNfiles==0) {
-		fileRDDs((i/splitRDDeveryNfiles)-1) = parsed
-		parsed = thisDataset
-	}
-		else {
-		parsed = parsed ++ thisDataset
-	}
-	}
-
-		/* concat all temporary rdds */
-		for(myrdd <- fileRDDs) {
-			parsed = parsed ++ myrdd
-		}
-		return parsed
-	}*/
-
 	def cleanAndFlattenBuckets(signed: RDD[(Int, String)]): RDD[(Int, String)] = {
 		val groupedUsersBySignature = signed.groupBy(_._2)
 		val buckets = groupedUsersBySignature.filter(x => x._2.size > 1)
@@ -222,7 +167,7 @@ object Main extends App {
 		signedUsers.join(userData).map((x:(Int, (String, Iterable[Rating]))) => (x._2._1, x._2._2))
 	}
 
-		override def main(args: Array[String]) = {
+	override def main(args: Array[String]) = {
 		val parser = new OptionParser[Config]("find similar") {
 			head("data.cleansing", "0.1")
 			opt[String]("TRAINING_PATH") action { (path, c) =>
@@ -260,7 +205,6 @@ object Main extends App {
 
 			help("help") text ("prints this usage text")
 		}
-		//run with:
 		parser.parse(args, new Config) match {
 			case Some(config) => run(config)
 			case None => // arguments are bad, error message will have been displayed
@@ -269,37 +213,6 @@ object Main extends App {
 
 	def run(config: Config) = {
 		val timeAtBeginning = System.currentTimeMillis
-
-		/*var firstNLineOfFile = -1
-		var numberOfFiles = 4
-		var numberOfMoviesForSig = 2
-		var TRAINING_PATH = "netflixdata/training_set/"
-		var SIGNATURE_SIZE:Int = 1
-		var NROFCORES:Int = 1
-		var SIM_THRESHOLD = 0.9
-
-		if(args.size > 0) {
-			TRAINING_PATH = args(0)
-		}
-		if(args.size > 1) {
-			numberOfFiles = args(1).toInt
-		}
-
-		if(args.size > 2) {
-			firstNLineOfFile = args(2).toInt
-		}
-
-		if(args.size > 3) {
-			SIGNATURE_SIZE = args(3).toInt
-		}
-
-		if(args.size > 4) {
-			NROFCORES = args(4).toInt
-		}
-
-		if(args.size > 5) {
-			SIM_THRESHOLD = args(5).toInt
-		}*/
 
 		val sc: SparkContext = configureSpark(config)
 
