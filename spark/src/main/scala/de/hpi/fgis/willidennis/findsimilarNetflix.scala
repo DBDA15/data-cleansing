@@ -19,7 +19,8 @@ case class Config(	CORES:Int = 1,
 										OUTPUT_FILE:String = "file:///tmp/spark-output",
 										EXECUTION_NAME:String = "data-cleansing",
 										USE_LENGTH_CLASSES_IN_SIG:Boolean = false,
-								 		MEMORY:String = "4g"
+								 		MEMORY:String = "4g",
+										MASTER:String = "local[*]"
 									 )
 
 object Main extends App {
@@ -232,6 +233,9 @@ object Main extends App {
 			opt[String]("EXECUTION_NAME") action { (s, c) =>
 				c.copy(EXECUTION_NAME = s)
 			} text ("Name of this execution")
+			opt[String]("MASTER") action { (s, c) =>
+				c.copy(MASTER = s)
+			} text ("Spark cluster master")
 			opt[Unit]("USE_LENGTH_CLASSES_IN_SIG") action { (_, c) =>
 				c.copy(USE_LENGTH_CLASSES_IN_SIG = true) } text("verbose is a flag")
 
@@ -290,7 +294,7 @@ object Main extends App {
 		val comparisonsAccum = sc.accumulator(0L, "Number of comparisons made")
 		//val candidatesWithRatings = joinCandidatesWithRatings(cleanFlatBuckets, users)
 
-		println(cleanFlatBuckets.map(x => List(x._1, x._2.size)))
+		println(cleanFlatBuckets.count)
 /*		val similarities = cleanFlatBuckets.flatMap(x => compareCandidates(x, comparisonsAccum, config.SIM_THRESHOLD))
 		//similarities.cache()
 		val simcount = similarities.count
@@ -311,6 +315,7 @@ object Main extends App {
 		var sparkConf = new SparkConf()
 		sparkConf.setAppName(Main.getClass.getName)
 		sparkConf.set("spark.executor.memory", conf.MEMORY)
+		sparkConf.setMaster(conf.MASTER)
 		new SparkContext(sparkConf)
 	}
 }
