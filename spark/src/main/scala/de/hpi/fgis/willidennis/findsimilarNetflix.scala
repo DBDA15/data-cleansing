@@ -148,7 +148,7 @@ object Main extends App {
 	}
 
 	def parseFiles(config:Config, sc:SparkContext): RDD[Rating] = {
-		var mapped: RDD[Rating] = sc.parallelize(Array[Rating]())
+		var mapped: RDD[Rating] = sc.makeRDD(Array[Rating]())
 
 		for(i <- 0 to config.FILES - 1) {
 			var text = sc.textFile(config.TRAINING_PATH + s"${i}.csv")
