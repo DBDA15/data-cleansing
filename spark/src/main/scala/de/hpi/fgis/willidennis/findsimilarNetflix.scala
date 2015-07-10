@@ -229,17 +229,17 @@ object Main extends App {
 
 		val sc: SparkContext = configureSpark(config)
 
-		val ratings = parseFiles(config, sc)
+		val ratings = parseFiles(config, sc).setName("read input")
 		val movieStats = collectMovieStats(ratings)
-		val users = ratings.groupBy(_.user)
+		val users = ratings.groupBy(_.user).setName("groupBy user")
 
-		val signed = users.flatMap(x => createSignature(config, movieStats, x._2.toArray))
-		val buckets = cleanAndFlattenBuckets(signed)
+		val signed = users.flatMap(x => createSignature(config, movieStats, x._2.toArray)).setName("create signature")
+		val buckets = cleanAndFlattenBuckets(signed).setName("clean and flatten buckets")
 
 		val comparisonsCounter = sc.accumulator(0L, "Number of comparisons made")
-		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users)
+		val candidatesWithRatings = joinCandidatesWithRatings(buckets, users).setName("join user buckets with ratings")
 
-		val similar = similarities(config, candidatesWithRatings, comparisonsCounter)
+		val similar = similarities(config, candidatesWithRatings, comparisonsCounter).setName("compare candidates")
 		// similar.distinct() // TODO @Dennis: I would accept duplicates because we have them in our flink measurements too
 		if(config.MEASURE_STUFF) {
 			similar.cache()
