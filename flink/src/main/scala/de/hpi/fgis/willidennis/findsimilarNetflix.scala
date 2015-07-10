@@ -40,9 +40,6 @@ object Main extends App {
 	}
 
 	def compareCandidates(config:Config, candidatesArray: Array[ Array[Rating] ], out: Collector[(Int, Int)])= {
-		var numberOfSims = 0.toLong
-		var comparisonsRaw = 0.toLong
-		var comparisonsEffective = 0.toLong
 		for(i<-0 to (candidatesArray.length-2)) {
 			var user1 = candidatesArray(i)
 
@@ -52,13 +49,10 @@ object Main extends App {
 
 				/* calculate similarity and add to result if sizes are close enough (depends on SIMTHRESHOLD) */
 				val sizesInRange = config.SIM_THRESHOLD * math.max(user1.size, user2.size) <= math.min(user1.size, user2.size)
-				comparisonsRaw += 1
 				if(sizesInRange) {
 					val simvalue = calculateSimilarity(user1, user2)
-					comparisonsEffective += 1
 					if(simvalue >= config.SIM_THRESHOLD) {
 						out.collect((user1.head.user, user2.head.user))
-						numberOfSims += 1
 					}
 				}
 			}
