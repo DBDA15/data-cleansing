@@ -9,7 +9,7 @@ LOG_DIR="out/mylogs/spark"
 OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/spark/out"
 # OUTPUT_DIR="/tmp/spark-output"
 BUILD="1.0"
-MASTER="spark://172.16.21.111:7077"
+# MASTER="spark://172.16.21.111:7077"
 # MASTER="localhost:4041"
 
 sigSize=1
@@ -20,7 +20,6 @@ for cores in 20 10 4 2 1
 do
 	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
 	$SPARK --class de.hpi.fgis.willidennis.Main \
-	--master $MASTER \
 	--conf spark.cores.max=$cores \
 	$JAR \
 	--TRAINING_PATH $INPUT$files/ \
@@ -36,7 +35,6 @@ for files in 200 500 1000
 do
 	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
 	$SPARK --class de.hpi.fgis.willidennis.Main \
-	--master $MASTER \
 	--conf spark.cores.max=$cores \
 	$JAR \
 	--TRAINING_PATH $INPUT$files/ \
@@ -44,6 +42,7 @@ do
 	--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$flag" \
 	--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$flag" \
 	--CORES $cores \
+	--MEMORY "6G" \
 	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
 done
 
