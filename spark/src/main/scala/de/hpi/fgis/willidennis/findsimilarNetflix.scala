@@ -100,7 +100,7 @@ object Main extends App {
 			aBucket =>
 				val candidates = aBucket.map(_._2.toArray).toArray
 				compareCandidates(config, candidates, comparisonsCounter)
-		}
+		}.setName("compare candidates")
 	}
 
 	def compareCandidates(config:Config, candidates:Array[Array[Rating]], comparisonsCounter: Accumulator[Long]): ArrayBuffer[(Int, Int)] = {
@@ -148,13 +148,8 @@ object Main extends App {
 	}
 
 	def parseFiles(config:Config, sc:SparkContext): RDD[Rating] = {
-		var mapped: RDD[Rating] = sc.makeRDD(Array[Rating]())
-
-		for(i <- 0 to config.FILES - 1) {
-			var text = sc.textFile(config.TRAINING_PATH + s"${i}.csv")
-			mapped = mapped.union(text.map(line => parseLine(line)))
-		}
-		return mapped
+		var text = sc.textFile(s"${config.TRAINING_PATH}/0.csv").setName("read rating input")
+		text.map(line => parseLine(line))
 	}
 
 	def cleanAndFlattenBuckets(signed: RDD[(Int, String)]): RDD[(Int, String)] = {
