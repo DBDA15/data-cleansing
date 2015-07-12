@@ -10,7 +10,7 @@ OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/spark/out"
 # OUTPUT_DIR="/tmp/spark-output"
 BUILD="1.0"
 # MASTER="localhost:4041"
-LOGFILE = "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores"
+LOGFILE="$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores"
 
 sigSize=1
 files=10
