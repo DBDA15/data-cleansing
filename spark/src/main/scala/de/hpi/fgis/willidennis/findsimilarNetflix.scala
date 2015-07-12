@@ -148,7 +148,8 @@ object Main extends App {
 	}
 
 	def parseFiles(config:Config, sc:SparkContext): RDD[Rating] = {
-		var text = sc.textFile(s"${config.TRAINING_PATH}/0.csv").setName("read rating input")
+		//minPartitions important to have config.CORES workers during later stages!!!!
+		var text = sc.textFile(s"${config.TRAINING_PATH}/0.csv", minPartitions = config.CORES).setName("read rating input")
 		text.map(line => parseLine(line))
 	}
 
