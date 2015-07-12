@@ -93,9 +93,10 @@ object Main extends App {
 	def similarities(config: Config,
 									 flattenedBuckets: RDD[(String, Iterable[Rating])],
 									 comparisonsCounter: Accumulator[Long]): RDD[(Int, Int)] = {
-		// group by signature String
-		val bucketsBySignature = flattenedBuckets.groupBy(aSignatureUserPair => aSignatureUserPair._1).map(_._2)
-		// compare candidates for each group
+		val bucketsBySignature = flattenedBuckets.groupBy {
+			aSignatureUserPair => aSignatureUserPair._1
+		}.map(_._2).setName("group flattened buckets by signature")
+
 		bucketsBySignature.flatMap {
 			aBucket =>
 				val candidates = aBucket.map(_._2.toArray).toArray
@@ -162,7 +163,7 @@ object Main extends App {
 	def joinCandidatesWithRatings(signedUsers: RDD[(Int, String)],
 																userData: RDD[(Int, Iterable[Rating])]): RDD[(String, Iterable[Rating])] = {
 		// (K, V).join(K, W) => (K, (V, W))
-		signedUsers.join(userData).map((x:(Int, (String, Iterable[Rating]))) => (x._2._1, x._2._2))
+		signedUsers.join(userData).map((x:(Int, (String, Iterable[Rating]))) => (x._2._1, x._2._2)).setName("join")
 	}
 
 	def deleteOutPutFileIfExists(path: String) = {
