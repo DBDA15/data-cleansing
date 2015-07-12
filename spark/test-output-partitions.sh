@@ -16,7 +16,8 @@ sigSize=1
 files=10
 cores=20
 
-for JAR in JARS
+for JAR in $JARS
+do
 	echo "collect similars s$sigSize f$files c$cores  start:" $(date +"%T")
 	$SPARK --class de.hpi.fgis.willidennis.Main \
 	--conf spark.cores.max=$cores \
@@ -26,6 +27,7 @@ for JAR in JARS
 	--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}" \
 	--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores" \
 	--CORES $cores \
-	> LOGFILE
-	echo grep "output partitions" LOGFILE
+	> $LOGFILE
+	echo $(grep "output partitions" ${LOGFILE})
+done
 echo "finish:" $(date +"%T")
