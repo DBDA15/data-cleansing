@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 FLINK="/opt/flink/flink-0.9.0/bin/flink"
-JAR="target/findSimilarNetflix-1.0.jar"
+JAR="flink/target/findSimilarNetflix-1.0.jar"
 INPUT="hdfs://tenemhead2/data/data-cleansing/netflixdata/training_set/cat"
-LOG_DIR="out/mylogs"
+LOG_DIR="flink/out/mylogs"
 OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/out"
 BUILD="1.0"
 
