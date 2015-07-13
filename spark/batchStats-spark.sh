@@ -13,38 +13,20 @@ BUILD="1.0"
 # MASTER="localhost:4041"
 
 sigSize=1
-flag=""
-files=100
-cores=20
 
-for files in 200 500
-do
-	echo "collect similars s$sigSize f$files c$cores start:" $(date +"%T")
-	$SPARK --class de.hpi.fgis.willidennis.Main \
-	--conf spark.cores.max=$cores \
-	$JAR \
-	--TRAINING_PATH $INPUT$files/ \
-	--SIGNATURE_SIZE $sigSize --FILES 1 \
-	--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}" \
-	--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores" \
-	--CORES $cores \
-	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores"
+for cores in 20 10 5 2 1
+	for i in {1..4}
+	do
+		echo "collect similars s$sigSize f$files c$cores i${i}start:" $(date +"%T")
+		$SPARK --class de.hpi.fgis.willidennis.Main \
+		--conf spark.cores.max=$cores \
+		$JAR \
+		--TRAINING_PATH $INPUT$files/ \
+		--SIGNATURE_SIZE $sigSize --FILES 1 \
+		--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}i${i}" \
+		--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c${cores}i${i}" \
+		--CORES $cores \
+		> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c${cores}i${i}"
+	done
 done
-
-# cores=20
-# for files in 200 500 1000
-# do
-# 	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
-# 	$SPARK --class de.hpi.fgis.willidennis.Main \
-# 	--conf spark.cores.max=$cores \
-# 	$JAR \
-# 	--TRAINING_PATH $INPUT$files/ \
-# 	--SIGNATURE_SIZE $sigSize --FILES 1 \
-# 	--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$flag" \
-# 	--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$flag" \
-# 	--CORES $cores \
-# 	--MEMORY "6G" \
-# 	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
-# done
-
 echo "finish:" $(date +"%T")

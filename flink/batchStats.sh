@@ -7,51 +7,19 @@ OUTPUT_DIR="hdfs://tenemhead2/data/data-cleansing/out"
 BUILD="1.0"
 
 sigSize=1
-cores=20
-files=200
-
-for flag in "" --USE_LENGTH_CLASSES_IN_SIG
-do
-	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
-	$FLINK run --class de.hpi.fgis.willidennis.Main \
-	$JAR \
-	--TRAINING_PATH $INPUT$files/ \
-	--SIGNATURE_SIZE $sigSize --FILES 1 \
-	--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$flag" \
-	--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$flag" \
-	--CORES $cores \
-	$flag \
-	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
-done
-
-flag=""
 files=100
 for cores in 20 10 4 2 1
 do
-	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
-	$FLINK run --class de.hpi.fgis.willidennis.Main \
-	$JAR \
-	--TRAINING_PATH $INPUT$files/ \
-	--SIGNATURE_SIZE $sigSize --FILES 1 \
-	--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$flag" \
-	--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$flag" \
-	--CORES $cores \
-	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
+	for i in {1..4}
+	do
+		echo "collect similars s$sigSize f$files c$cores $i{i} start:" $(date +"%T")
+		$FLINK run --class de.hpi.fgis.willidennis.Main \
+		$JAR \
+		--TRAINING_PATH $INPUT$files/ \
+		--SIGNATURE_SIZE $sigSize --FILES 1 \
+		--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$i{i}" \
+		--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$i{i}" \
+		--CORES $cores \
+		> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$i{i}"
+	done
 done
-
-files=500
-cores=20
-for flag in "" --USE_LENGTH_CLASSES_IN_SIG
-do
-	echo "collect similars s$sigSize f$files c$cores $flag start:" $(date +"%T")
-	$FLINK run --class de.hpi.fgis.willidennis.Main \
-	$JAR \
-	--TRAINING_PATH $INPUT$files/ \
-	--SIGNATURE_SIZE $sigSize --FILES 1 \
-	--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$flag" \
-	--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$flag" \
-	--CORES $cores \
-	$flag \
-	> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$flag"
-done
-echo "finish:" $(date +"%T")
