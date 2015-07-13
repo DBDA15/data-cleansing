@@ -12,14 +12,14 @@ for cores in 20 10 4 2 1
 do
 	for i in {1..4}
 	do
-		echo "collect similars s$sigSize f$files c$cores $i{i} start:" $(date +"%T")
+		echo "collect similars s$sigSize f$files c${cores} i${i} start:" $(date +"%T")
 		$FLINK run --class de.hpi.fgis.willidennis.Main \
 		$JAR \
 		--TRAINING_PATH $INPUT$files/ \
 		--SIGNATURE_SIZE $sigSize --FILES 1 \
 		--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$i{i}" \
-		--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c$cores$i{i}" \
+		--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c${cores}$i{i}" \
 		--CORES $cores \
-		> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c$cores$i{i}"
+		> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c${cores}i${i}"
 	done
 done
