@@ -18,7 +18,7 @@ do
 		--TRAINING_PATH $INPUT$files/ \
 		--SIGNATURE_SIZE $sigSize --FILES 1 \
 		--OUTPUT_FILE "$OUTPUT_DIR/similars-s${sigSize}f${files}c${cores}$i{i}" \
-		--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c${cores}$i{i}" \
+		--EXECUTION_NAME "data-cleansing-findSimilars-s${sigSize}f${files}c${cores}i${i}" \
 		--CORES $cores \
 		> "$LOG_DIR/log-findSimilars-s${sigSize}f${files}c${cores}i${i}"
 	done
