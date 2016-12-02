@@ -3,6 +3,8 @@ DATA CLEANSING
 This application uses the Apache Spark/Flink Frameworks to find similar users in the Netflix user data set.
 Users are compared based on the movies they rated, the rating value itself gets ignored.
 
+The algorithm as well as results are discussed in Chapter 8 (p.20–24) of our [technical report Distributed Data Analysis with Apache Spark and Apache Flink](Distributed_Big_Data_Analytics.pdf).
+
 BUILD
 ----
 Use Java 7 and maven package
